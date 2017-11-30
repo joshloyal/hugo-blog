@@ -1,0 +1,15 @@
+<footer id="footer">
+    {{ if .Site.Social }}
+        {{ partial "social.html" . }}
+    {{ end }}
+    <p class="small">
+    {{ with .Site.Params.copyright }}
+        {{ . | markdownify }}
+    {{ else }}
+       © {{ now.Format "2006"}} ・ {{ if .Site.Params.copyright_url }}<a href='{{ .Site.Params.copyright_url }}'>{{ .Site.Params.copyright_name }}</a>{{ else }}{{ .Site.Params.name }}{{ end }}
+    {{ end }}
+    </p>
+    <p class="small">
+        Powered by <a href="http://www.gohugo.io/">Hugo</a> Theme By <a href="https://github.com/nodejh/hugo-theme-cactus-plus">nodejh</a>
+    </p>
+</footer>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Joshua Loyal</title>
+    <link>/blog/</link>
+    <description>Recent content on Joshua Loyal</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en</language>
+    <lastBuildDate>Thu, 03 Aug 2017 00:00:00 +0000</lastBuildDate>
+    
+	<atom:link href="/blog/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>Hello world!</title>
+      <link>/blog/post/2015-07-23-r-rmarkdown/</link>
+      <pubDate>Thu, 03 Aug 2017 00:00:00 +0000</pubDate>
+      
+      <guid>/blog/post/2015-07-23-r-rmarkdown/</guid>
+      <description>This is the launch of the blog on my personal site. I am still not sure what this blog will contain. In fact, I am starting this blog to develop my writing voice and style. However, I know that it will primarily be a place I can expand on ideas relevant to my research and work interests. So expect to read a lot of musings on statistical concepts, data science topics, coding tricks, software libraries, and current trends in machine learning.</description>
+    </item>
+    
+  </channel>
+</rss>
