@@ -14,7 +14,7 @@ ignoreFiles = ["\\.Rmd$", "\\.Rmarkdown$", "_files$", "_cache$"]
 [params]
 	name = "Joshua Loyal"
 	description = "Joshua Loyal's Person Blog"
-	bio = "Notes"
+	bio = "Blog"
 	# Enter optionally your twitter account
 	twitter = "joshloyal"
 	enableRSS = false
