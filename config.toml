@@ -1,5 +1,5 @@
 # Site settings
-baseurl = "http://joshloyal.github.io/blog"
+baseurl = "https://joshloyal.netlify.com/"
 # HTML Language Code Reference, such as en, zh-cn
 languageCode = "en"
 title = "Joshua Loyal"
