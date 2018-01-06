@@ -40,8 +40,8 @@ ignoreFiles = ["\\.Rmd$", "\\.Rmarkdown$", "_files$", "_cache$"]
 	baiduAnalytics = 'your_baidu_tongji_code'
 
 	# Add custom assets with their paths relative to the static folder
-	customCSS = []
-	customJS  = []
+	customCSS = ["css/toggle.css"]
+	customJS  = ["js/format_python.js", "js/code_folding.js"]
 
 	# The variables below are optionally too and can be used to
 	# translate or customize each string of the theme.
