@@ -7,11 +7,11 @@ $(document).ready(function() {
   $("pre").filter(isCodeChunk)
     .before(function(index, html) {
       if ( $(this).hasClass("fold") ) {
-          return "<input class=\"tgl tgl-flip\" id=\"cb"
+          return "<input class=\"tgl tgl-flat\" id=\"cb"
             + index + "\" type=\"checkbox\"/>";
       } else {
-          return "<input class=\"tgl tgl-flip\" id=\"cb"
-            + index + "\" type=\"checkbox\" checked/>";
+          return "<input class=\"tgl tgl-flat\" id=\"cb"
+            + index + "\" type=\"checkbox\"checked/>";
      }
     })
     .before(function(index, html) {
