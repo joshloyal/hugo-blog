@@ -113,6 +113,7 @@
   font-family: sans-serif;
   background: #fd8525;
   width: 15%;
+  font-size: 0.8rem;
   border-radius: 5px;
 }
 .tgl-flat + .tgl-btn:after, .tgl-flat + .tgl-btn:before {

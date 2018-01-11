@@ -1,0 +1,190 @@
+---
+title: "How Does a Decision Tree Choose a Split?"
+author: "Joshua Loyal"
+date: '2018-01-06'
+slug: decision-tree-splits
+draft: true
+tags:
+- Decision Trees
+- Random Forest
+categories: []
+---
+```{r setup, include = FALSE}
+library(knitr)
+library(reticulate)
+
+library(tidyverse)
+library(cowplot)
+library(zeallot)
+
+# decision tree libraries
+library(rpart)
+library(rpart.plot)
+
+# python binary to use
+python_loc = '/Users/joshua/.virtualenv/ds3/bin/python'
+
+# set knitr to use that python location
+opts_chunk$set(engine.path = python_loc)
+```
+
+Decision trees and Random Forests are some of the most widely used predictive models in data science. According to [a survey taken by Kaggle in 2017](https://www.kaggle.com/surveys/2017) they only sit behind logistic regression as the 2nd and 3rd most used models at work. Due to their popularity, it is important to understand how tree based methods produce the results that drive many every-day decisions.
+
+This post is largely inspired by the research of Hemant Ishwaran from the University of Miami. In particular, the following great work that explores the behavior of random forests and decision trees:
+
+- H Ishwaran (2015) [The effect of splitting on random forests](http://www.ccs.miami.edu/~hishwaran/papers/I.ML.2015.pdf).
+
+### Summary of post
+- Introduction to decision trees
+- Splitting Criteria
+- Analysis of the effect this has in the regression setting
+- End-cut preference and its importance.
+
+# Introduction
+
+Tree based methods have one objective: partition the feature space into a series of rectangles where the target value is roughly constant. If we have a single feature $X_1$ these rectangles correspond to line segements of the form $X_1 \in [a, b]$. For example, consider the following tree:
+
+It groups the data into three line segements or regions: <span style="color: #ff7f0e">$R_1 = [0, 0.2)$</span>, <span style='color: #1f77b4'>$R_2 = [0.2, 0.75)$</span>, and <span style='color: #2ca02c'>$R_3 = [0.75, 1]$</span>. Data passes through the top of the tree (or root) and is split off until it falls into one of the three rectangles or leaves. Predictions are then made by returning a constant value in that leaf:
+
+$$
+\hat{f}(x) = \sum_{m=1}^3 c_m I\{x \in R_m\}
+$$
+
+Since the predictions of a decision tree is a simple function (the mean of the target in the leaves), what drives the accuracy of the model is its choice of splits.
+
+# Splitting Criteria
+
+The two most common splitting criteria are weighted variance reduction and the gini index.
+
+# But What Does this Look Like?
+
+```{r polynomial_data, class.source = 'fold'}
+make_polynomial <- function(n_samples = 100) {
+  x <- seq(-3, 3, length.out = n_samples)
+  y <- 2 * x^3 - 2 * x^2 - x
+  dy <- 6 * x^2 - 4 * x - 1
+    
+  list(x=x, y=y, dy=dy)
+}
+
+c(x, y, dy) %<-% make_polynomial(n_samples = 500)
+
+# fit a decision tree to the data
+hyper_params = rpart::rpart.control(minbucket = 5, cp = 0.001)
+tree <- rpart::rpart(y ~ x, data = data.frame(x, y), 
+                     control = hyper_params)
+y_pred <- predict(tree, data = data.frame(x, y))
+
+# threshold values
+splits = as.tibble(tree$splits)
+
+# plot function and thresholds
+ggplot(NULL, aes(x = x)) +
+  geom_vline(aes(xintercept=splits$index), linetype = 'dashed', alpha = 0.5) + 
+  geom_line(aes(y = dy), size = 1, color = 'darkgray') +
+  geom_line(aes(y = y_pred), size = 1, color = 'mediumseagreen') +
+  geom_line(aes(y = y), size = 1, color = 'darkorange') +
+  ggthemes::theme_hc()
+```
+
+Deciding the split
+
+```{r deciding_the_split}
+biased_var <- function(x) {
+  n_samples <- length(x)
+  ((n_samples - 1) / n_samples) * var(x)
+}
+
+sum_of_squares <- function(x) {
+  (length(x) - 1) * var(x)
+}
+
+scan_split <- function(X, y) {
+  splits <- sort(unique(X))
+  loss <- vector('numeric', length(splits))
+  n_samples <- length(X)
+  for (split_idx in seq_along(splits)) {
+    split <- splits[split_idx]
+    n_left <- length(X < split)
+    n_right <- length(X >= split)
+    loss [split_idx] <- sum_of_squares(y) - (sum_of_squares(y[X < split]) + sum_of_squares(y[X >= split]))
+  }
+  
+  list(loss, splits)
+}
+
+c(loss, splits) %<-% scan_split(x, y)
+
+ggplot(data.frame(loss, splits), aes(x = splits, y = loss)) +
+  geom_line() +
+  ggthemes::theme_hc()
+```
+
+```{r}
+data <- data.frame(x=x, y=y, z = x < -1.9)
+g <- ggplot(data, aes(x=z, y=y)) + 
+  #geom_hline(aes(yintercept = mean(data$y[data$z]))) +
+  #geom_hline(aes(yintercept = mean(data$y[!data$z]))) +
+  geom_jitter() 
+#ggMarginal(g)
+```
+
+```{r decision_tree, class.source = 'fold'}
+rpart.plot::rpart.plot(tree)
+```
+```{python block_data, class.source = 'fold'}
+import matplotlib.pyplot as plt
+import numpy as np
+# !!space
+from sklearn.utils import check_random_state
+
+# !!space
+
+def make_blocks(n_samples=400, noise_std=None, shuffle=True, random_state=123):
+    """Generates data from a piecewise blocking function. Common in wavelet analysis.
+    
+    Parameters
+    ----------
+    n_samples: int 
+      Number of samples
+      
+    noise_std: float, optional (default=None)
+      The standard deviation of the gausian noise applied to the data.
+      
+    shuffle: bool
+      Whether to shuffle the data.
+      
+    random_state: int
+      The seed to use for the random number generator.
+    """
+    rng = check_random_state(random_state)
+    
+    X = np.linspace(0, 1, n_samples).reshape(-1, 1)
+
+    # !!space
+    def Kt(t):
+        return (1 + np.sign(t)) / 2
+
+    # !!space
+    hj = np.array(
+        [4, -5, 3, -4, 5, -4.2, 2.1, 4.3, -3.1, 2.1, -4.2])
+    tj = np.array(
+        [0.1, 0.13, 0.15, 0.23, 0.25, 0.40, 0.44, 0.65, 0.76, 0.78, 0.81])
+
+    # !!space
+    y = np.dot(Kt(X - tj), hj)
+    if noise_std:
+        y += noise_std * rng.randn(n_samples)
+
+    # !!space
+    return X, y
+
+# !!space
+
+X, y = make_blocks(noise_std=None)
+
+# !!space
+
+plt.plot(X, y)
+plt.show()
+```

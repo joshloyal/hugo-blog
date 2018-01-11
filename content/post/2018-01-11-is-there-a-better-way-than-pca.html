@@ -1,0 +1,210 @@
+---
+title: Is there a better way than PCA?
+author: Joshua Loyal
+date: '2018-01-11'
+slug: is-there-a-better-way-than-pca
+categories: []
+tags:
+  - dimension reduction
+  - sliced inverse regression
+  - pca
+  - machine learning
+---
+
+
+
+<div id="what-is-sufficient-dimension-reduction" class="section level1">
+<h1>What is Sufficient Dimension Reduction?</h1>
+<p>Let’s say we have some data, and we want to predict some feature, <span class="math inline">\(y\)</span>, using a collection of other features, <span class="math inline">\(\mathbf{X}\)</span>. In other words, we want to gain some insight about the conditional distribution <span class="math inline">\(y|\mathbf{X}\)</span>. However, when the number of features is high, it is common to remove irrelavent features before moving onto the prediction step. This removal of features is what is meant by dimension reduction. We are <em>reducing</em> the number of columns (aka <em>dimensions</em>) in our dataset.</p>
+<p>Those familiar with dimension reduction may be thinking: “<em>I’ll use PCA or t-SNE for this!</em>”. While these techniques are great, they fall under the category of <em>unsupervised</em> dimension reduction. Notice that the unsupervised setup is very different than the situation described above. In unsupervised learning we are only concerned with the distribution of <span class="math inline">\(\mathbf{X}\)</span> itself. No y involved. For example, PCA would reduce the number of features by identifying a small set of directions that explains the greatest variation in the data. This set of directions is known as a subspace. However, there is no reason to believe that this subspace contains any information about the relationship between <span class="math inline">\(y\)</span> and <span class="math inline">\(\mathbf{X}\)</span>. Information about <span class="math inline">\(y\)</span> could be orthogonal to this space. This is because PCA did not use information about <span class="math inline">\(y\)</span> when determining the directions of variation.</p>
+<p>In order to avoid the situation above, <strong>sufficient dimension reduction</strong> is all about keeping the relationship between <span class="math inline">\(\mathbf{X}\)</span> and <span class="math inline">\(y\)</span> in mind. The goal is to find a small set of directions that can replace <span class="math inline">\(\mathbf{X}\)</span> without loss of information on the conditional distribution <span class="math inline">\(y|\mathbf{X}\)</span>. This special subspace is called the <strong>central subspace</strong>, and is labeled with the symbol <span class="math inline">\(S(\mathbf{X})\)</span>. In other words, if we restrict out attention to this smaller subspace, <span class="math inline">\(S(\mathbf{X})\)</span>, we would find that the conditional distribution <span class="math inline">\(y|S(\mathbf{X})\)</span> is the same as the distribution <span class="math inline">\(y|\mathbf{X}\)</span>. But we now have a much smaller set of features! This would allow us to better visualize our data and possibly gain deeper insights.</p>
+<div id="example-surfaces-in-3d" class="section level2">
+<h2>Example: Surfaces in 3D</h2>
+<p>Let’s focus on a concrete example: A surface in three-dimensions. In this case, we have two features <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> that live on a plane in 2-dimensions. In addition, each pair of points, <span class="math inline">\((x_1, x_2)\)</span>, is associated with the height of the surface, <span class="math inline">\(y\)</span>, that lies above it. In this example, we will focus on a parabolic surface: <span class="math inline">\(y = x_1^2\)</span>. In terms of features and targets, we have a dataset of two features, (<span class="math inline">\(x_1\)</span>, <span class="math inline">\(x_2\)</span>), and the target is the height of the surface, <span class="math inline">\(y\)</span>.</p>
+<p>What are the possible subspaces associated with this dataset? They are subspaces of the <span class="math inline">\(x_1x_2\)</span>-plane. This is a plane in two-dimensions. The subspaces of this plane correspond to all one-dimensional lines in the plane. A few examples are displayed below:</p>
+<pre class="python fold"><code>from matplotlib import pyplot as plt
+# !!space
+from loyalpy.plots import abline
+from loyalpy.annotations import label_abline
+# !!space
+fig, ax = plt.subplots(figsize=(10, 10))
+# !!space
+# plot lines in the plane
+ablines = [([-5, -5], [5, 5]),
+           ([-5, 0], [5, 0]),
+           ([0, -5], [0, 5]),
+           ([-5, 5], [5, -5])]
+for a_coords, b_coords in ablines:
+    abline(a_coords, b_coords, ax=ax, ls=&#39;--&#39;, c=&#39;k&#39;, lw=2)
+# !!space
+# labels
+label_abline([-5, 5], [5, -5], &#39;$\hat{\\beta}$ = (1, -1)&#39;, -2, 1.5)
+label_abline([-5, -5], [5, 5], &#39;$\hat{\\beta}$ = (1, 1)&#39;, 1.5, 1.7)
+label_abline([-5, 0], [5, 0], &#39; $x_1$-axis: $\hat{\\beta}$ = (1, 0)&#39;, -3, 0.2)
+label_abline([0, 5], [0, -5], &#39;$x_2$-axis: $\hat{\\beta}$ = (0, 1)&#39;, 0.3, 2)
+# !!space
+ax.set_xlabel(&#39;$x_1$&#39;)
+ax.set_ylabel(&#39;$x_2$&#39;)
+ax.set_xlim(-5, 5)
+ax.set_ylim(-5, 5)
+# !!space
+plt.show()</code></pre>
+<p><img src="/post/2018-01-11-is-there-a-better-way-than-pca_files/figure-html/subspace_demo-1.png" width="960" /></p>
+<p>The goal of sufficient dimension reduction is to identify the line that contains all the information about <span class="math inline">\(y\)</span>. In this example that would be the <span class="math inline">\(x_1\)</span>-axis, since <span class="math inline">\(y = x_1^2\)</span> is a function of only <span class="math inline">\(x_1\)</span>. By dropping <span class="math inline">\(x_2\)</span> from our analysis we would not lose any information about <span class="math inline">\(y\)</span>, since <span class="math inline">\(y\)</span> does not depend on <span class="math inline">\(x_2\)</span>.</p>
+<p>Now you may have notices that each subspace is labeled with a vector <span class="math inline">\(\hat{\beta}\)</span>. This vector tells us the direction of the line. More importantly, <span class="math inline">\(\hat{\beta}\)</span> can be used to project any point in the plane onto that line. We just take the dot product. For example to project a point onto the <span class="math inline">\(x_1\)</span>-axis we let <span class="math inline">\(\hat{\beta} = \begin{pmatrix} 1 \\ 0 \end{pmatrix}\)</span>, so that <span class="math inline">\(\hat{\beta}^T x = \begin{pmatrix} 1 &amp; 0 \end{pmatrix} \begin{pmatrix} x_1 \\ x_2 \end{pmatrix} = x_1\)</span>. It is this <span class="math inline">\(\hat{\beta}\)</span> that is of central importance in sufficient dimension reduction algorithms. If we can estimate <span class="math inline">\(\hat{\beta}\)</span>, then we can create a lower dimensional dataset by using <span class="math inline">\(\mathbf{X}\hat{\beta}\)</span> in our analysis instead of <span class="math inline">\(\mathbf{X}\)</span>.</p>
+<p>Now, let’s take a look at the surface <span class="math inline">\(y = x_1^2\)</span> to see how this sort of dimension reduction can help us visualize a dataset. A 3d plot of the surface in the <span class="math inline">\(x_1\)</span>-<span class="math inline">\(x_2\)</span>-<span class="math inline">\(y\)</span> plane is shown below.</p>
+<pre class="python fold"><code>import numpy as np
+# !!space
+from mpl_toolkits.mplot3d import Axes3D
+from loyalpy.annotations import Arrow3D
+# !!space
+# generate data y = X_1 ** 2 + 0 * X_2
+def f(x, y):
+    return x ** 2 
+# !!space
+x1 = np.linspace(0, 6, 30)
+x2 = np.linspace(0, 6, 30)
+# !!space
+X1, X2 = np.meshgrid(x1, x2)
+Y = f(X1, X2)
+# !!space
+# plot 3d surface y = x_1 ** 2
+fig, ax = plt.subplots(figsize=(10,10), subplot_kw={&#39;projection&#39;:&#39;3d&#39;})
+ax.plot_surface(X1, X2, Y, rstride=1, cstride=1,
+                cmap=&#39;viridis&#39;, edgecolor=&#39;none&#39;)
+# !!space
+# An arrow indicating the central subspace
+arrow = Arrow3D([0, 6], [3, 3],
+                [0, 0], mutation_scale=20, 
+                lw=3, arrowstyle=&quot;-|&gt;&quot;, color=&quot;k&quot;)
+ax.add_artist(arrow)
+ax.text(4, 3.5, 0, &quot;$\hat{\\beta} = (1, 0)$&quot;, (1, 0, 0), 
+        color=&#39;k&#39;, fontsize=12)
+# !!space
+# rotate and label our axes
+ax.view_init(35, -75)
+ax.set_title(&#39;$y = x_1^2$&#39;);
+ax.set_xlabel(&#39;$x_1$&#39;)
+ax.set_ylabel(&#39;$x_2$&#39;)
+ax.set_zlabel(&#39;y&#39;)
+# !!space
+plt.show()</code></pre>
+<p><img src="/post/2018-01-11-is-there-a-better-way-than-pca_files/figure-html/3d_data-1.png" width="960" /></p>
+<p>Notice how the surface only varies along the <span class="math inline">\(x_1\)</span>-axis. It is completly flat as one traverses along the <span class="math inline">\(x_2\)</span> dimension. This is what we mean when we say <span class="math inline">\(x_2\)</span> carrying no information about <span class="math inline">\(y\)</span>. <span class="math inline">\(y\)</span> does not change along this direction. In addition, the direction associated with the <span class="math inline">\(x_1\)</span>-axis, <span class="math inline">\(\hat{\beta} = (0, 1)\)</span>, is labeled with an arrow. Notice that if we align our view with the <span class="math inline">\(\hat{\beta}\)</span> arrow, then we’d be looking at a two-dimensional plot instead of a three dimensional plot. This is shown below:</p>
+<pre class="python fold"><code>ax = plt.axes(projection=&#39;3d&#39;)
+ax.view_init(0, -90)
+ax.plot_surface(X1, X2, Y, rstride=1, cstride=1,
+                cmap=&#39;viridis&#39;, edgecolor=&#39;none&#39;)
+a = Arrow3D([0, 6], [3, 3],
+            [0, 0], mutation_scale=20, 
+            lw=3, arrowstyle=&quot;-|&gt;&quot;, color=&quot;k&quot;)
+ax.add_artist(a)
+ax.text(4, 3.5, 2, &quot;$\hat{\\beta} = (1, 0)$&quot;, (1, 0, 0), color=&#39;k&#39;, fontsize=12)
+ax.set_title(&#39;$y = x_1^2$&#39;);
+ax.set_xlabel(&#39;$x_1$&#39;)
+ax.set_ylabel(&#39;$x_2$&#39;)
+ax.set_zlabel(&#39;y&#39;)
+plt.show()</code></pre>
+<p><img src="/post/2018-01-11-is-there-a-better-way-than-pca_files/figure-html/central_subspace-1.png" width="960" /></p>
+<p>So by looking at how <span class="math inline">\(y\)</span> varies along the <span class="math inline">\(\hat{\beta}\)</span>-directions we’ve gone from viewing a three-dimensional plot to a two-dimension plot. In other words, we have reduced the number of features from two to one, but the functional form <span class="math inline">\(y = x_1^2\)</span> is still clear. This reduction of features is sufficient!</p>
+</div>
+</div>
+<div id="sliced-inverse-regression-vs.pca" class="section level1">
+<h1>Sliced Inverse Regression vs. PCA</h1>
+<p>Now that we know what sufficient dimension reduction is trying to accomplish, we can look at how it is useful in the analysis of a dataset. In addition, this example is designed to highlight the differences between <em>unsupervised</em> and <em>sufficient</em> dimension reduction. We will compare the subspace identified by <code>SlicedInverseRegression</code> (SIR) in the <code>imreduce</code> package with <code>sklearn</code>’s <code>PCA</code>. SIR is based on sufficient dimension reduction, while PCA is not.</p>
+<p>Consider the following data generating process:</p>
+<p><span class="math display">\[
+y = \sin(0.7 X_1 - 0.7 X_2) + \epsilon
+\]</span> <span class="math display">\[
+X_i \overset{iid}\sim N(0, 1), \quad \epsilon \overset{iid}\sim N(0, 0.1) 
+\]</span></p>
+<p>The dataset has two uncorrelated features, <span class="math inline">\(X_1\)</span> and <span class="math inline">\(X_2\)</span>, generated from a normal distribution. The target is the result of applying a sine function to a linear combination of <span class="math inline">\(X_1\)</span> and <span class="math inline">\(X_2\)</span>. There is also independent gaussian noise, <span class="math inline">\(\epsilon\)</span>, applied on top of the sinusoidal signal.</p>
+<p>Below is a scatterplot of <span class="math inline">\(X_2\)</span> vs. <span class="math inline">\(X_1\)</span>. The points are colored according to <span class="math inline">\(y\)</span>. Brighter colors correspond to larger values of the target. In addition, the central subspace is labeled with a dashed line.</p>
+<pre class="python fold"><code>import numpy as np
+import matplotlib.pyplot as plt
+# !!space
+from loyalpy.annotations import label_line, label_abline
+# !!space
+np.random.seed(123)
+# !!space
+n_samples = 500
+X = np.random.randn(n_samples, 2)
+y = np.sin(0.7 * X[:, 0] - 0.7 * X[:, 1]) + 0.1 * np.random.randn(n_samples)
+# !!space
+fig, ax = plt.subplots(figsize=(10, 10))
+# !!space
+# label the central subspace
+line, = ax.plot([-5, 5], [5, -5], ls=&#39;--&#39;, c=&#39;k&#39;, alpha=0.5)
+label_line(line, &#39;central subspace&#39;, -3.5, 2.5)
+# !!space
+# scatter plot of points
+ax.scatter(X[:, 0], X[:, 1], c=y, cmap=&#39;viridis&#39;, edgecolors=&#39;k&#39;, s=80)
+ax.set_xlim(-5, 5)
+ax.set_ylim(-5, 5)
+# !!space
+plt.show()</code></pre>
+<p><img src="/post/2018-01-11-is-there-a-better-way-than-pca_files/figure-html/data-1.png" width="960" /></p>
+<p>Now for whatever reason we want to reduce the number of features in this dataset from two to one. Maybe to better visualize the behavior of <span class="math inline">\(y\)</span>. Or maybe because we can only use one feature to build our predictive model. Regardless we decide to compare the one dimensional feature found by SIR with the first principal component of PCA.</p>
+<p>Let’s take a step back and think about how we would remove features if we knew how the data was generated. If we knew the data generating process above, then we could recognize that the mean of <span class="math inline">\(y\)</span> is completely determined by a single feature:</p>
+<p><span class="math display">\[
+Z = 0.7X_1 - 0.7X_2.
+\]</span></p>
+<p>If <span class="math inline">\(Z = \pi\)</span>, then <span class="math inline">\(E[y|Z] = \sin(Z) = \sin(\pi) = 0\)</span>. The conditional expectation is a function of a single variable, <span class="math inline">\(Z\)</span>, instead of the two variables <span class="math inline">\(X_1\)</span> and <span class="math inline">\(X_2\)</span>. Therefore, we should use <span class="math inline">\(Z\)</span> in our analysis instead of <span class="math inline">\(X_1\)</span> and <span class="math inline">\(X_2\)</span>. This would reduced the dimension of our dataset from two to one without losing any information about <span class="math inline">\(y\)</span>.</p>
+<p>Of course, sufficient dimension reduction is thinking in terms of subspaces not derived features. So what subspace is associated with the variable <span class="math inline">\(Z\)</span>? In terms of directions, we see that <span class="math inline">\(Z\)</span> is associated with the vector <span class="math inline">\(\hat{\beta} = (0.7, -0.7)\)</span>. This is because we can calculate <span class="math inline">\(Z\)</span> by carrying out the product:</p>
+<p><span class="math display">\[
+Z = \hat{\beta}^T X = \begin{pmatrix} 0.7 &amp; -0.7 \end{pmatrix} \begin{pmatrix} X_1 \\ X_2 \end{pmatrix} = 0.7 X_1 - 0.7 X_2.
+\]</span></p>
+<p>Thus we should focus our attention on the one dimensional subspace <span class="math inline">\(\hat{\beta} = (1, -1)\)</span> instead of the two dimensional plane.</p>
+<p>Of course we do not know that <span class="math inline">\(\hat{\beta}\)</span> exists, so we set out to use SIR and PCA to estimate it from the data. Both algorithms come pre-packaged in <code>sklearn</code> style transformers that use the hyperparameter <code>n_components</code> to indicate the dimension of the subspace we want. In this case we want a single direction, so we set <code>n_components=1</code>. The only difference between SIR and PCA is that we need to tell SIR about the target during the fitting process. In addition, both algorithms store the components of the subspace in the <code>components_</code> attribute. The following code fits the two algorithms and extracts the estimated <span class="math inline">\(\hat{\beta}\)</span> vector:</p>
+<pre class="python"><code>from imreduce import SlicedInverseRegression
+from sklearn.decomposition import PCA
+# !!space
+# fit imreduce&#39;s SIR. Remember we need to pass the target in as well!
+sir = SlicedInverseRegression(n_components=1).fit(X, y)
+sir_direction = sir.components_[0, :]
+# !!space
+# fit sklearn&#39;s PCA. Unsupervised so it has no knowledge of y.
+pca = PCA(n_components=1).fit(X)
+pca_direction = pca.components_[0, :]</code></pre>
+<p>With our models fit, let’s compare the directions found by PCA and SIR:</p>
+<pre class="python fold"><code># scatter plot of points
+fig, ax = plt.subplots(figsize=(10,10))
+ax.scatter(X[:, 0], X[:, 1], c=y, cmap=&#39;viridis&#39;, alpha=0.2, edgecolors=&#39;k&#39;, s=80)
+ax.set_xlim(-5, 5)
+ax.set_ylim(-5, 5)
+# !!space
+# label the central subspace
+line, = ax.plot([-5, 5], [5, -5], ls=&#39;--&#39;, c=&#39;k&#39;, alpha=0.5)
+label_line(line, &#39;central subspace&#39;, -3.5, 2.5)
+# !!space
+# label subspaces found by PCA and SIR
+arrow_aes = dict(head_width=0.2,
+                 head_length=0.2,
+                 width=0.08,
+                 ec=&#39;k&#39;)
+ax.arrow(0, 0, pca_direction[0], pca_direction[1], fc=&#39;darkorange&#39;, **arrow_aes)
+label_abline((0, 0), pca_direction, &#39;PCA&#39;, -0.7, -0.2, color=&#39;darkorange&#39;, outline=True)
+# !!space
+ax.arrow(0, 0, sir_direction[0], sir_direction[1], fc=&#39;deepskyblue&#39;, **arrow_aes)
+label_abline((0, 0), sir_direction, &#39;SIR&#39;, 0.5, -0.5, color=&#39;deepskyblue&#39;, outline=True)
+# !!space
+plt.show()</code></pre>
+<p><img src="/post/2018-01-11-is-there-a-better-way-than-pca_files/figure-html/directions-1.png" width="960" /></p>
+<p>The orange arrow corresponds to the subspace found by PCA, while the blue arrow corresponds to the subspace found by SIR. Notice how the direction found by PCA has nothing to do with <span class="math inline">\(y\)</span>. If it did, then it would point along the color gradient. Instead PCA picks the direction that happens to have the most spread in the data cloud. In fact, this direction is meaningless since the data was generated from an isotropic gaussian blob. However, SIR knows about <span class="math inline">\(y\)</span>. Therefore it orients itself nicely along the color gradient, which contains all the information about the target.</p>
+<p>To see how this helps visualization, we can project the dataset into the SIR and PCA subspace by using the <code>transform</code> method:</p>
+<pre class="python"><code># project data into the subspaces identified by SIR and PCA
+X_sir = sir.transform(X)
+X_pca = pca.transform(X)</code></pre>
+<p>The relationship between these new features and <span class="math inline">\(y\)</span> is easily visualize in a 2d scatterplot:</p>
+<pre class="python fold"><code>f, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(15, 10))
+# !!space
+ax1.scatter(X_sir[:, 0], y, c=y, cmap=&#39;viridis&#39;, edgecolors=&#39;k&#39;, s=80)
+ax1.set_title(&#39;SIR Subspace&#39;)
+# !!space
+ax2.scatter(X_pca[:, 0], y, c=y, cmap=&#39;viridis&#39;, edgecolors=&#39;k&#39;, s=80)
+ax2.set_title(&#39;PCA Subspace&#39;)
+# !!space
+plt.show()</code></pre>
+<p><img src="/post/2018-01-11-is-there-a-better-way-than-pca_files/figure-html/projected_plots-1.png" width="1440" /></p>
+<p>These plots display the power of the SIR algorithm. The sinusoidal pattern that links the features with the target is clearly visiable in the SIR plot on the left. However, this pattern is almost washed out in the PCA plot on the right with data spread almost uniformaly about the scatter plot.</p>
+</div>

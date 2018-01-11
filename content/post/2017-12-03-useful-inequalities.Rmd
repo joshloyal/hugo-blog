@@ -1,0 +1,16 @@
+---
+title: useful-inequalities
+author: ~
+date: '2017-12-03'
+slug: useful-inequalities
+draft: true
+categories: []
+tags: []
+---
+
+$$
+P(X \geq a) \leq e^{-ta} M_X(t)
+$$
+$$
+\text{E}[g(X)] \geq g(a) P(X \geq a), \text{g(x) is a non-negative function}
+$$
