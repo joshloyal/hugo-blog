@@ -28,19 +28,26 @@ import matplotlib as mpl
 mpl.rcParams['figure.figsize'] = (10, 10)
 ```
 
+**Note**: Checkout the [`imreduce`](https://github.com/joshloyal/inverse-moment-reductions) python package I developed for this blog-post!
+
+*Always use the right tool for the job.* This is useful guidance when building a machine learning pipeline. Most data scientists would agree that support vector machines are able to classify images, but a convolutional neural network would work better. Linear regression can fit a time-series, but an ARIMA model would be more accurate. In each of these cases what separates the two algorithms is that the second algorithm specifically address the structure of the problem. CNNs understand the translation invariance of an image and an ARIMA model takes advantage of the sequential nature of a time-series. 
+
+This logic should not be any different for dimension reduction. If you are performing dimension reduction for a supervised learning task there is no reason why that reduction should be agnostic to the target you are trying to predict. This insight is what motivates the paradigm of **sufficient dimension reduction**. In the remaining post I will introduce the concept of sufficient dimension reduction. After which I will demonstrate the **sliced inverse regression** (SIR) algorithm, which can be used to reduce the dimensions of a dataset when a target is available.
+
 # What is Sufficient Dimension Reduction?
 
-Let's say we have some data, and we want to predict some feature, $y$, using a collection of other features, $\mathbf{X}$. In other words, we want to gain some insight about the conditional distribution $y|\mathbf{X}$. However, when the number of features is high, it is common to remove irrelavent features before moving onto the prediction step. This removal of features is what is meant by dimension reduction. We are *reducing* the number of columns (aka *dimensions*) in our dataset.
+Let's say we have a collection of features $\mathbf{X}$, and we want to predict some target $y$. In other words, we want to gain some insight about the conditional distribution $y|\mathbf{X}$. However, when the number of features is high, it is common to remove irrelevant features before moving onto the prediction step. This removal of features is what is meant by dimension reduction. We are *reducing* the number of features (aka *dimensions*) in our dataset.
 
-Those familiar with dimension reduction may be thinking: "*I'll use PCA or t-SNE for this!*". While these techniques are great, they fall under the category of *unsupervised* dimension reduction. Notice that the unsupervised setup is very different than the situation described above. In unsupervised learning we are only concerned with the distribution of $\mathbf{X}$ itself. No y involved. For example, PCA would reduce the number of features by identifying a small set of directions that explains the greatest variation in the data. This set of directions is known as a subspace. However, there is no reason to believe that this subspace contains any information about the relationship between $y$ and $\mathbf{X}$. Information about $y$ could be orthogonal to this space. This is because PCA did not use information about $y$ when determining the directions of variation.
+Those familiar with dimension reduction may be thinking: "*I'll use PCA or t-SNE for this!*". While these techniques are great, they fall under the category of *unsupervised* dimension reduction. Notice that the unsupervised setup is very different than the situation described above. In unsupervised learning we are only concerned with the distribution of $\mathbf{X}$ itself. No $y$ involved. For example, PCA would reduce the number of features by identifying a small set of directions that explains the greatest variation in the data. This set of directions is known as a **subspace**. However, there is no reason to believe that this subspace contains any information about the relationship between $y$ and $\mathbf{X}$. Information about $y$ could be orthogonal to this space. This is because PCA did not use information about $y$ when determining the directions of greatest variation.
 
-In order to avoid the situation above, **sufficient dimension reduction** is all about keeping the relationship between $\mathbf{X}$ and $y$ in mind. The goal is to find a small set of directions that can replace $\mathbf{X}$ without loss of information on the conditional distribution $y|\mathbf{X}$. This special subspace is called the **central subspace**, and is labeled with the symbol $S(\mathbf{X})$. In other words, if we restrict out attention to this smaller subspace, $S(\mathbf{X})$, we would find that the conditional distribution $y|S(\mathbf{X})$ is the same as the distribution $y|\mathbf{X}$. But we now have a much smaller set of features! This would allow us to better visualize our data and possibly gain deeper insights.
+In order to avoid the situation above, **sufficient dimension reduction** is all about keeping the relationship between $\mathbf{X}$ and $y$ in mind. The goal is to find a small set of directions that can replace $\mathbf{X}$ without loss of information on the conditional distribution $y|\mathbf{X}$ [^1]. This special subspace is called the **dimension reducing subspace** (DRS), and is labeled with the symbol $S(\mathbf{X})$ [^2]. In other words, if we restrict our attention to this smaller subspace, $S(\mathbf{X})$, we would find that the conditional distribution $y|S(\mathbf{X})$ is the same as the distribution $y|\mathbf{X}$. But now we have a much smaller set of features! This allows us to better visualize our data and possibly gain deeper insights.
 
-## Example: Surfaces in 3D
+## Example: A Quadratic Surface in 3D
 
-Let's focus on a concrete example: A surface in three-dimensions. In this case, we have two features $x_1$ and $x_2$ that live on a plane in 2-dimensions. In addition, each pair of points, $(x_1, x_2)$, is associated with the height of the surface, $y$, that lies above it. In this example, we will focus on a parabolic surface: $y = x_1^2$. In terms of features and targets, we have a dataset of two features, ($x_1$, $x_2$), and the target is the height of the surface, $y$.
+Let's try to develop some intuition about these dimension reducing subspaces and how we can find them.
+To do this let's focus on a concrete example: a quadratic surface in three-dimensions. Imagine we have two features $x_1$ and $x_2$ that represent the coordinates of a point on a two-dimensional plane. In addition, associated with each pair of points, $(x_1, x_2)$, is the height of a surface that lies above it. The height of the surface is denoted by the variable $y$. In this example, we will focus on a quadratic surface: $y = x_1^2$. In terms of features and targets, we have a dataset composed of two features, ($x_1$, $x_2$), and the target is the height of the quadratic, $y$.
 
-What are the possible subspaces associated with this dataset? They are subspaces of the $x_1x_2$-plane. This is a plane in two-dimensions. The subspaces of this plane correspond to all one-dimensional lines in the plane. A few examples are displayed below:
+Before we can identify the dimension reducing subspace we need to answer the following question: what are all the possible subspaces associated with this dataset? They are the subspaces of the $x_1x_2$-plane, which is a plane in two-dimensions. But the subspaces of a two-dimensional plane are all the one-dimensional lines that lie in that plane and that pass through the origin $(0, 0)$. A few examples are displayed below:
 
 ```{python subspace_demo, class.source = 'fold'}
 from matplotlib import pyplot as plt
@@ -72,11 +79,17 @@ ax.set_ylim(-5, 5)
 plt.show()
 ```
 
-The goal of sufficient dimension reduction is to identify the line that contains all the information about $y$. In this example that would be the $x_1$-axis, since $y = x_1^2$ is a function of only $x_1$. By dropping $x_2$ from our analysis we would not lose any information about $y$, since $y$ does not depend on $x_2$.
+Of all these subspaces there is only one dimension reducing subspace. But what is it? Remember that $y = x_1^2$ is a function of only $x_1$. Since $y$ does not depend on $x_2$, we could drop $x_2$ from our analysis and still be able to compute $y$. This means that $x_1$ contains all the information about $y$. In terms of subspaces, dropping $x_2$ corresponds to projecting our data onto the $x_1$-axis -- a valid subspace! So the dimension reducing subspace is the $x_1$-axis.
 
-Now you may have notices that each subspace is labeled with a vector $\hat{\beta}$. This vector tells us the direction of the line. More importantly, $\hat{\beta}$ can be used to project any point in the plane onto that line. We just take the dot product. For example to project a point onto the $x_1$-axis we let $\hat{\beta} = \begin{pmatrix} 1 \\ 0 \end{pmatrix}$, so that $\hat{\beta}^T x = \begin{pmatrix} 1 & 0 \end{pmatrix} \begin{pmatrix} x_1 \\ x_2 \end{pmatrix} = x_1$. It is this $\hat{\beta}$ that is of central importance in sufficient dimension reduction algorithms. If we can estimate $\hat{\beta}$, then we can create a lower dimensional dataset by using $\mathbf{X}\hat{\beta}$ in our analysis instead of $\mathbf{X}$.
+But how would a machine learning algorithm tell us to project the data onto the $x_1$-axis? The outputs of the algorithm are numbers after all. In the plot above you may have noticed that each subspace is labeled with a vector $\hat{\beta}$. This vector tells us the direction of the line associated with the subspace. More importantly, this vector can be used to perform a projection of the data into this subspace. We just need to take the dot product of $\hat{\beta}$ with the data points. For example to project a point onto the $x_1$-axis we let $\hat{\beta} = \begin{pmatrix} 1 \\ 0 \end{pmatrix}$, so that
+$$
+\hat{\beta}^T x = \begin{pmatrix} 1 & 0 \end{pmatrix} \begin{pmatrix} x_1 \\ x_2 \end{pmatrix} = x_1.
+$$
 
-Now, let's take a look at the surface $y = x_1^2$ to see how this sort of dimension reduction can help us visualize a dataset. A 3d plot of the surface in the $x_1$-$x_2$-$y$ plane is shown below.
+Therefore, finding the dimension reducing subspace boils down to identifying the direction vector $\hat{\beta}$.
+If we can estimate $\hat{\beta}$, then we can create a lower dimensional dataset by using $\mathbf{X}\hat{\beta}$ in our analysis instead of $\mathbf{X}$.
+
+Now, let's take a look at the surface $y = x_1^2$ to see how we can visually identify the dimension reducing subspace. A three-dimensional plot of the surface in the $x_1$-$x_2$-$y$ plane is shown below.
 
 ```{python 3d_data, class.source = 'fold'}
 import numpy as np
@@ -120,32 +133,41 @@ ax.set_zlabel('y')
 plt.show()
 ```
 
-Notice how the surface only varies along the $x_1$-axis. It is completly flat as one traverses along the $x_2$ dimension. This is what we mean when we say $x_2$ carrying no information about $y$. $y$ does not change along this direction. In addition, the direction associated with the $x_1$-axis, $\hat{\beta} = (0, 1)$, is labeled with an arrow. Notice that if we align our view with the $\hat{\beta}$ arrow, then we'd be looking at a two-dimensional plot instead of a three dimensional plot. This is shown below:
+Notice how the height of the surface does not change as one traverses along the $x_2$ dimension. This is what we mean when we say $x_2$ carries no information about $y$. It means that $y$ does not change along this direction. In addition, the direction associated with the dimension reducing subspace, $\hat{\beta} = (1, 0)$ or the $x_1$-axis, is labeled with an arrow. Notice how all the variation in $y$ occurs as we walk along this line. That is what it means to carry all the information about $y$.
+
+We can also take a look at what happens when we rotate the plot so that the $x$-axis is aligned with the direction of $\hat{\beta}$. This rotation is equivalent to projecting the data onto the dimension reducing subspace. This rotation / projection is shown below:
 
 ```{python central_subspace, class.source = 'fold'}
+# plot the surface
 ax = plt.axes(projection='3d')
-ax.view_init(0, -90)
 ax.plot_surface(X1, X2, Y, rstride=1, cstride=1,
                 cmap='viridis', edgecolor='none')
-a = Arrow3D([0, 6], [3, 3],
-            [0, 0], mutation_scale=20, 
-            lw=3, arrowstyle="-|>", color="k")
-ax.add_artist(a)
+# !!space
+# label beta
+arrow = Arrow3D([0, 6], [3, 3],
+                [0, 0], mutation_scale=20, 
+                lw=3, arrowstyle="-|>", color="k")
+ax.add_artist(arrow)
 ax.text(4, 3.5, 2, "$\hat{\\beta} = (1, 0)$", (1, 0, 0), color='k', fontsize=12)
+
+# !!space
+# label the axes and rotate our view
+ax.view_init(0, -90)
 ax.set_title('$y = x_1^2$');
 ax.set_xlabel('$x_1$')
 ax.set_ylabel('$x_2$')
 ax.set_zlabel('y')
-
+# !!space
 plt.show()
 ```
 
-So by looking at how $y$ varies along the $\hat{\beta}$-directions we've gone from viewing a three-dimensional plot to a two-dimension plot. In other words, we have reduced the number of features from two to one, but the functional form $y = x_1^2$ is still clear. This reduction of features is sufficient!
+Something amazing happened here. Although we are looking at a two-dimensional surface, it appears like a one-dimensional curve! Each value on the $\hat{\beta}$-axis corresponds to only a single $y$ value. If we chose any other direction the function would not be one-to-one. Furthermore the relationship between $y$ and $x_1$ is extremely clear. They have a quadratic relationship. In other words, we can reduce the number of features from two to one by projecting the data onto this axis without compromising the functional form $y = x_1^2$. This is what it looks like when the reduction of features is sufficient!
 
-# Sliced Inverse Regression vs. PCA
+# Sliced Inverse Regression VS. PCA
 
-Now that we know what sufficient dimension reduction is trying to accomplish, we can look at how it is useful in the analysis of a dataset. In addition, this example is designed to highlight the differences between *unsupervised* and *sufficient* dimension reduction. We will compare the subspace identified by `SlicedInverseRegression` (SIR) in the `imreduce` package with `sklearn`'s `PCA`. SIR is based on sufficient dimension reduction, while PCA is not.
+Now that we know what sufficient dimension reduction can accomplish, we are ready to explore the differences between *unsupervised* and *sufficient* dimension reduction. To do this will compare PCA with an algorithm known as **sliced inverse regression** (SIR). SIR was developed in 1991 by Ker-Chau Li from UCLA [^3] and expanded upon by Dennis Cook and Sanford Weisberg from the University of Minnesota [^4]. It uses the idea of inverse regression to estimate the dimension reducing subspace of the data. We will use the `SlicedInverseRegression` code in the [`imreduce`](https://github.com/joshloyal/inverse-moment-reductions) package to fit a SIR model. PCA will be carried out using `sklearn`'s `PCA` implementation.
 
+## The Data
 Consider the following data generating process:
 
 $$
@@ -157,7 +179,7 @@ $$
 
 The dataset has two uncorrelated features, $X_1$ and $X_2$, generated from a normal distribution. The target is the result of applying a sine function to a linear combination of $X_1$ and $X_2$. There is also independent gaussian noise, $\epsilon$, applied on top of the sinusoidal signal. 
 
-Below is a scatterplot of $X_2$ vs. $X_1$. The points are colored according to $y$. Brighter colors correspond to larger values of the target. In addition, the central subspace is labeled with a dashed line.
+Below is a scatterplot of $X_2$ vs. $X_1$. The points are colored according to $y$. Brighter colors correspond to larger values of the target. In addition, the dimension reducing subspace is labeled with a dashed line.
 
 ```{python data, class.source = 'fold'}
 import numpy as np
@@ -181,7 +203,7 @@ fig, ax = plt.subplots(figsize=(10, 10))
 # !!space
 # label the central subspace
 line, = ax.plot([-5, 5], [5, -5], ls='--', c='k', alpha=0.5)
-label_line(line, 'central subspace', -3.5, 2.5)
+label_line(line, 'dimension reducing subspace', -4, 2)
 
 # !!space
 
@@ -189,19 +211,23 @@ label_line(line, 'central subspace', -3.5, 2.5)
 ax.scatter(X[:, 0], X[:, 1], c=y, cmap='viridis', edgecolors='k', s=80)
 ax.set_xlim(-5, 5)
 ax.set_ylim(-5, 5)
+ax.set_xlabel('$X_1$')
+ax.set_ylabel('$X_2$')
 # !!space
 plt.show()
 ```
 
-Now for whatever reason we want to reduce the number of features in this dataset from two to one. Maybe to better visualize the behavior of $y$. Or maybe because we can only use one feature to build our predictive model. Regardless we decide to compare the one dimensional feature found by SIR with the first principal component of PCA.
+Notice how the dimension reducing subspace exactly follows the color gradient of the target. That is what distinguishes this subspace. It maximally preserves the information in $y$.
 
-Let's take a step back and think about how we would remove features if we knew how the data was generated. If we knew the data generating process above, then we could recognize that the mean of $y$ is completely determined by a single feature:
+## What Should We See?
+
+First, let's take a step back and think about how to remove features if we know the data generating process. This is the gold standard for dimension reduction. From the equations above, we recognize that the mean of $y$ is completely determined by a single feature:
 
 $$
 Z = 0.7X_1 - 0.7X_2.
 $$
 
-If $Z = \pi$, then $E[y|Z] = \sin(Z) = \sin(\pi) = 0$. The conditional expectation is a function of a single variable, $Z$, instead of the two variables $X_1$ and $X_2$. Therefore, we should use $Z$ in our analysis instead of $X_1$ and $X_2$. This would reduced the dimension of our dataset from two to one without losing any information about $y$.
+For example, if $Z = \pi$, then $E[y|Z] = \sin(Z) = \sin(\pi) = 0$. The conditional expectation is a function of a single variable, $Z$, instead of the two variables $X_1$ and $X_2$. Therefore, we should use $Z$ in our analysis instead of $X_1$ and $X_2$. This reduces the dimension of our dataset from two to one without losing any information about $y$.
 
 Of course, sufficient dimension reduction is thinking in terms of subspaces not derived features. So what subspace is associated with the variable $Z$? In terms of directions, we see that $Z$ is associated with the vector $\hat{\beta} = (0.7, -0.7)$. This is because we can calculate $Z$ by carrying out the product:
 
@@ -209,9 +235,13 @@ $$
 Z = \hat{\beta}^T X = \begin{pmatrix} 0.7 & -0.7 \end{pmatrix} \begin{pmatrix} X_1 \\ X_2 \end{pmatrix} = 0.7 X_1 - 0.7 X_2.
 $$
 
-Thus we should focus our attention on the one dimensional subspace $\hat{\beta} = (1, -1)$ instead of the two dimensional plane.
+Therefore, we should focus our attention on the one dimensional subspace $\hat{\beta} = (1, -1)$ instead of the two dimensional plane.
 
-Of course we do not know that $\hat{\beta}$ exists, so we set out to use SIR and PCA to estimate it from the data. Both algorithms come pre-packaged in `sklearn` style transformers that use the hyperparameter `n_components` to indicate the dimension of the subspace we want. In this case we want a single direction, so we set `n_components=1`. The only difference between SIR and PCA is that we need to tell SIR about the target during the fitting process. In addition, both algorithms store the components of the subspace in the `components_` attribute. The following code fits the two algorithms and extracts the estimated $\hat{\beta}$ vector: 
+## Let's Actually Fit a Model!
+
+Of course we do not know how the data was generated, so we do not know that $\hat{\beta}$ exists when setting out to perform our analysis. However, we still want to reduce the number of features in this dataset from two to one. Both SIR and PCA will accomplish our goal. They will project our data into a one dimensional subspace. But which one is better? From the analysis above we know the answer is $\hat{\beta} = (1, -1)$ , which is also the dimension reducing subspace that SIR is estimating. But how off will PCA be from this subspace? If PCA is close then who cares about all this extra theory? To find out we fit both algorithms and compare the results.
+
+Each algorithms is packaged in `sklearn` style transformers that use the hyperparameter `n_components` to indicate the dimension of the subspace we want. In this case we want a single direction, so we set `n_components=1`. In addition, both algorithms store the direction of the subspace in the `components_` attribute. The only difference between the SIR and PCA implementations is that we need to tell SIR about the target during the fitting process. The following code fits the two algorithms and extracts the estimated $\hat{\beta}$ vector: 
 
 ```{python sir}
 from imreduce import SlicedInverseRegression
@@ -226,7 +256,7 @@ pca = PCA(n_components=1).fit(X)
 pca_direction = pca.components_[0, :]
 ```
 
-With our models fit, let's compare the directions found by PCA and SIR:
+With the models fit to the data, let's compare the directions found by PCA and SIR:
 
 ```{python directions, class.source = 'fold'}
 # scatter plot of points
@@ -234,12 +264,14 @@ fig, ax = plt.subplots(figsize=(10,10))
 ax.scatter(X[:, 0], X[:, 1], c=y, cmap='viridis', alpha=0.2, edgecolors='k', s=80)
 ax.set_xlim(-5, 5)
 ax.set_ylim(-5, 5)
+ax.set_xlabel('$X_1$')
+ax.set_ylabel('$X_2$')
 
 # !!space
 
 # label the central subspace
 line, = ax.plot([-5, 5], [5, -5], ls='--', c='k', alpha=0.5)
-label_line(line, 'central subspace', -3.5, 2.5)
+label_line(line, 'dimension reducing subspace', -4, 2)
 
 # !!space
 
@@ -259,9 +291,67 @@ label_abline((0, 0), sir_direction, 'SIR', 0.5, -0.5, color='deepskyblue', outli
 plt.show()
 ```
 
-The orange arrow corresponds to the subspace found by PCA, while the blue arrow corresponds to the subspace found by SIR. Notice how the direction found by PCA has nothing to do with $y$. If it did, then it would point along the color gradient. Instead PCA picks the direction that happens to have the most spread in the data cloud. In fact, this direction is meaningless since the data was generated from an isotropic gaussian blob. However, SIR knows about $y$. Therefore it orients itself nicely along the color gradient, which contains all the information about the target.
+The <span style='color: darkorange'>orange arrow</span> corresponds to the subspace found by PCA, while the <span style='color: deepskyblue'>blue arrow</span> corresponds to the subspace found by SIR. Notice how the direction found by PCA has nothing to do with $y$. If it did, then it would point along the color gradient. Instead PCA picks the direction that happens to have the most spread in the data cloud. However, SIR knows about $y$. Therefore it orients itself nicely along the color gradient, which contains all the information about the target.
 
-To see how this helps visualization, we can project the dataset into the SIR and PCA subspace by using the `transform` method:
+In fact, the performance of PCA is even worse than it appears. Since the data was generated from an isotropic gaussian blob, the PCA directions will be completely random upon replication. PCA just chooses the direction that happens to have the most variance in the sample. But the data is isotropic, so we expect this direction to be uniformly distributed over all possible subspaces. The variance of the principal component is huge! This is catastrophic if you are an analyst trying to make sense of your data. You may trick yourself into thinking the direction chosen by PCA has some special meaning, when in fact it does not. To see this more clearly we can repeat this experiment multiple times. Each time we measure the angle between the dimension reducing subspace, $\hat{\beta}_{true}$, and the direction chosen by PCA and SIR. We then plot the distributions of the angle in a histogram. The result is displayed below:
+
+```{python replicate_angle, class.source = 'fold'}
+def normalize_it(vec):
+  """Normalize a vector."""
+  vec = vec.astype(np.float64)
+  vec /= np.linalg.norm(vec)
+  return vec
+# !!space
+def replicate_angle(n_samples=500, n_iter=2500):
+    """Caculate the SIR and PCA angles for `n_iter` replications."""
+    # direction of dimension reducing subspace
+    true_direction = normalize_it(np.array([1, -1]))
+    # !!space
+    # iterate the experiment multiple times and see how the angle changes
+    pca_angle = np.empty(n_iter, dtype=np.float64)
+    sir_angle = np.empty(n_iter, dtype=np.float64)
+    for i in range(n_iter):
+        np.random.seed(i)
+        # !!space
+        X = np.random.randn(n_samples, 2)
+        y = np.sin(0.7 * X[:, 0] - 0.7 * X[:, 1]) + 0.1 * np.random.randn(n_samples)
+        # !!space
+        sir = SlicedInverseRegression(n_components=1).fit(X, y)
+        sir_direction = normalize_it(sir.components_[0, :])
+        # !!space
+        pca = PCA(n_components=1).fit(X)
+        pca_direction = normalize_it(pca.components_[0, :])
+        # !!space
+        cos_angle = np.dot(pca_direction, true_direction)
+        pca_angle[i] = np.arccos(cos_angle)
+        # !!space
+        cos_angle = np.dot(sir_direction, true_direction)
+        sir_angle[i] = np.arccos(cos_angle)
+    
+    return pca_angle, sir_angle
+# !!space
+# plot the results
+pca_angle, sir_angle = replicate_angle()
+# !!space
+fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(10, 10))
+# !!space
+# less bins since everything is basically at zero within precision
+ax1.hist(sir_angle, color="steelblue", edgecolor="white", linewidth=2, bins=3)
+ax1.set_title('SIR')
+ax1.set_xlabel('Angle between $\hat{\\beta}_{true}$ and $\hat{\\beta}_{sir}$')
+ax1.set_ylabel('Counts')
+# !!space
+ax2.hist(pca_angle, color="steelblue", edgecolor="white", linewidth=2, bins=20)
+ax2.set_title('PCA')
+ax2.set_xlabel('Angle between $\hat{\\beta}_{true}$ and $\hat{\\beta}_{pca}$')
+ax2.set_ylabel('Counts')
+# !!space
+plt.show()
+```
+
+As expect the distribution of directions estimated by PCA (the histogram on the bottom) is completely uniform from 0 to $2\pi$. The direction found by PCA is completely meaningless. However, the distribution of the angle found by SIR (the histogram on the top) is concentrated around zero. Meaning it almost always finds the direction of the dimension reducing subspace for this problem.
+
+Finally, let's take a look at what the data looks like in the dimension reducing subspace found by SIR and the subspace found by PCA. We can project the data into these subspaces by using the `transform` method:
 
 ```{python transform_data}
 # project data into the subspaces identified by SIR and PCA
@@ -269,18 +359,33 @@ X_sir = sir.transform(X)
 X_pca = pca.transform(X)
 ```
 
-The relationship between these new features and $y$ is easily visualize in a 2d scatterplot:
+The relationship between these new features and $y$ is easily visualize in a two-dimensional scatterplot:
 
 ```{python projected_plots, class.source = 'fold'}
-f, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(15, 10))
+f, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(20, 10))
 # !!space
 ax1.scatter(X_sir[:, 0], y, c=y, cmap='viridis', edgecolors='k', s=80)
 ax1.set_title('SIR Subspace')
+ax1.set_xlabel('$\mathbf{X}\hat{\\beta}_{sir}$')
+ax1.set_ylabel('y')
 # !!space
 ax2.scatter(X_pca[:, 0], y, c=y, cmap='viridis', edgecolors='k', s=80)
 ax2.set_title('PCA Subspace')
+ax2.set_xlabel('$\mathbf{X}\hat{\\beta}_{pca}$')
+ax2.set_ylabel('y')
 # !!space
 plt.show()
 ```
 
-These plots display the power of the SIR algorithm. The sinusoidal pattern that links the features with the target is clearly visiable in the SIR plot on the left. However, this pattern is almost washed out in the PCA plot on the right with data spread almost uniformaly about the scatter plot.
+The power of the SIR algorithm is evident in these plots.The sinusoidal pattern that links the features with the target is clearly visible in the SIR plot on the left. However, this pattern is almost washed out in the PCA plot on the right. In this plot the data is spread almost uniformly about the plane. PCA destroys the relationship between the features and the target, while SIR preserves it.
+
+# Conclusion
+
+It is important to think critically about the dimension reduction algorithm you use to analyze your data. It should reduce the features in a way that preserves the information you want instead of finding spurious structure. **Sufficient dimension reduction** and **sliced inverse regression** are one such way of looking for structure in a supervised learning setting. 
+
+However you should always remain diligent. These algorithms are not perfect. In particular, SIR fails to estimate the dimension reducing subspace when the conditional density $\mathbf{X}|y$ is symmetric in $y$. The SAVE algorithm (also in the [`imreduce`](https://github.com/joshloyal/inverse-moment-reductions) package) overcomes this limitation. However, SAVE fails to pick up on simple linear trends. If possible both SIR and SAVE should be used together in practice. Of course, I did not actually go through the mechanics of the SIR algorithm. That will be the subject of a future blog post.
+
+[^1]: This may sound very similar to a *sufficient statistic* in mathematical statistics. In fact it should! They are both based on the same idea of sufficiency.
+[^2]: Note that there can be more than one dimension reducing subspace. Typically we are interested in the smallest dimension reducing subspace, which may not even exist. If it does then it is unique and called the **central subspace**. This is analogous to a minimum sufficient statistic in mathematical statistics.
+[^3]: Li, K C. (1991) "Sliced Inverse Regression for Dimension Reduction (with discussion)", Journal of the American Statistical Association, 86, 316-342.
+[^4]: Cook, D. and Weisberg , S. (1991) "Sliced Inverse Regression for Dimension Reduction: Comment", Journal of the American Statistical Association, 86, 328-342.
