@@ -3,6 +3,7 @@ title: Is There a Better Way Than PCA?
 author: Joshua Loyal
 date: '2018-01-11'
 slug: is-there-a-better-way-than-pca
+description: "Choosing the right unsupervised learning algorithm for dimension reduction is important. This post compares and contrasts sliced inverse regression (SIR) with principal component analysis (PCA) to demonstrate the effectiveness of sufficient dimension reduction."
 categories: []
 tags:
   - dimension reduction
