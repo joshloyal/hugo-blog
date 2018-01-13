@@ -1,9 +1,8 @@
 ---
-title: Is there a better way than PCA?
+title: Is There a Better Way Than PCA?
 author: Joshua Loyal
 date: '2018-01-11'
 slug: is-there-a-better-way-than-pca
-draft: true
 categories: []
 tags:
   - dimension reduction
@@ -28,11 +27,11 @@ import matplotlib as mpl
 mpl.rcParams['figure.figsize'] = (10, 10)
 ```
 
-**Note**: Checkout the [`imreduce`](https://github.com/joshloyal/inverse-moment-reductions) python package I developed for this blog-post!
+**Note**: Checkout the [`imreduce`](https://github.com/joshloyal/inverse-moment-reductions) python package I developed for this blog post!
 
 *Always use the right tool for the job.* This is useful guidance when building a machine learning model. Most data scientists would agree that support vector machines are able to classify images, but a convolutional neural network works better. Linear regression can fit a time-series, but an ARIMA model is more accurate. In each case what separates the algorithms is that the second algorithm specifically address the structure of the problem. CNNs understand the translation invariance of an image and an ARIMA model takes advantage of the sequential nature of a time-series. 
 
-The logic is no different for dimension reduction. Performing dimension reduction for a supervised learning task should not be agnostic to the structure of the target. This insight motivates the paradigm of **sufficient dimension reduction**. In the remaining post I introduce the concept of sufficient dimension reduction through a toy example of a three-dimensional curve. Then I compare a popular algorithm for SDR known as **sliced inverse regression** with principal component analysis (PCA) on a superversied learning problem.
+The logic is no different for dimension reduction. Performing dimension reduction for a supervised learning task should not be agnostic to the structure of the target. This insight motivates the paradigm of **sufficient dimension reduction**. In the remaining post I introduce the concept of sufficient dimension reduction through a toy example of a surface in three-dimensions. Then I compare a popular algorithm for SDR known as **sliced inverse regression** with principal component analysis (PCA) on a supervised learning problem.
 
 # What is Sufficient Dimension Reduction?
 
@@ -40,11 +39,11 @@ Let's say we have a collection of features $\mathbf{X}$, and we want to predict 
 
 Those familiar with dimension reduction may be thinking: "*I'll use PCA or t-SNE for this!*". While these techniques are great, they fall under the category of *unsupervised* dimension reduction. Notice that the unsupervised setup is different than the situation described above. Unsupervised learning finds structure in the distribution of $\mathbf{X}$ itself. No $y$ involved. For example, PCA reduces the number of features by identifying a small set of directions that explains the greatest variation in the data. This set of directions is known as a **subspace**. Of course, there is no reason to believe that this subspace contains any information about the relationship between $y$ and $\mathbf{X}$. Since PCA does not use information about $y$ when determining the directions of greatest variation, information about $y$ may be orthogonal to this space.
 
-To avoid the situation above, **sufficient dimension reduction** keeps the relationship between $\mathbf{X}$ and $y$ in mind. The goal is to find a small set of directions that can replace $\mathbf{X}$ without loss of information on the conditional distribution $y|\mathbf{X}$ [^1]. This special subspace is called the **dimension reducing subspace** (DRS) or simply $S(\mathbf{X})$. [^2]. If we restrict our attention to the DRS we will find that the conditional distribution $y|S(\mathbf{X})$ is the same as the distribution $y|\mathbf{X}$. But now we have a much smaller set of features! This allows us to better visualize our data and possibly gain deeper insights.
+To avoid the situation above, **sufficient dimension reduction** keeps the relationship between $\mathbf{X}$ and $y$ in mind. The goal is to find a small set of directions that can replace $\mathbf{X}$ without loss of information on the conditional distribution $y|\mathbf{X}$ [^1]. This special subspace is called the **dimension reducing subspace** (DRS) or simply $S(\mathbf{X})$ [^2]. If we restrict our attention to the DRS we will find that the conditional distribution $y|S(\mathbf{X})$ is the same as the distribution $y|\mathbf{X}$. But now we have a much smaller set of features! This allows us to better visualize our data and possibly gain deeper insights.
 
 ## Example: A Quadratic Surface in 3D
 
-Let's develop some intuition about dimension reducing subspaces and how we can find them. Start with two features $x_1$ and $x_2$ that indicate the coordinates of a point on a two-dimensional plane. Associate with each pair of points, $(x_1, x_2)$, the height of a surface that lies above it. Denote the height of the surface by the variable $y$. The surface is a quadratic surface with $y = x_1^2$. So the two features are ($x_1$, $x_2$) and the target is the height of the quadratic, $y$.
+Let's develop some intuition about dimension reducing subspaces and how we can find them. Consider two features $x_1$ and $x_2$ that indicate the coordinates of a point on a two-dimensional plane. Associate with each pair of points, $(x_1, x_2)$, the height of a surface that lies above it. Denote the height of the surface by the variable $y$. The surface is a quadratic surface with $y = x_1^2$. So the two features are ($x_1$, $x_2$) and the target is the height of the quadratic, $y$.
 
 To identify the dimension reducing subspace we start by answering the following question: what are all the possible subspaces associated with this dataset? They are the subspaces of the $x_1x_2$-plane. This is a plane in two-dimensions. But the subspaces of a two-dimensional plane are all the one-dimensional lines that lie in that plane and that pass through the origin $(0, 0)$. The plot below displays a few examples:
 
@@ -87,7 +86,7 @@ $$
 
 Therefore, finding the dimension reducing subspace boils down to identifying the direction vector $\hat{\beta}$. If we can estimate $\hat{\beta}$, then we can create a lower dimensional dataset by using $\mathbf{X}\hat{\beta}$ in our analysis instead of $\mathbf{X}$.
 
-Some visualizations are in order. To see how we can visually identify the dimension reducing subspace lets take a look at the surface $y = x_1^2$. A three-dimensional plot of the surface in the $x_1$-$x_2$-$y$ plane is shown below.
+To see how we can visually identify the dimension reducing subspace lets take a look at the surface $y = x_1^2$. A three-dimensional plot of the surface in the $x_1$-$x_2$-$y$ plane is shown below.
 
 ```{python 3d_data, class.source = 'fold'}
 import numpy as np
@@ -219,7 +218,7 @@ Notice how the dimension reducing subspace follows the color gradient of the tar
 
 ## What Should We See?
 
-Let's take a step back and identify the dimension reducing subspace assuming the data generating process is known. This is the gold standard for dimension reduction. According to the equations above the mean of $y$ is determined by a single feature:
+Let's take a step back and identify the dimension reducing subspace assuming the data generating process is known. According to the equations above the mean of $y$ is determined by a single feature:
 
 $$
 Z = 0.7X_1 - 0.7X_2.
@@ -291,7 +290,7 @@ plt.show()
 
 The <span style='color: darkorange'>orange arrow</span> corresponds to the subspace found by PCA, while the <span style='color: deepskyblue'>blue arrow</span> corresponds to the subspace found by SIR. Notice how the direction found by PCA has nothing to do with $y$. If it did, then it would point along the color gradient. Instead PCA picks the direction that has the largest spread along the data cloud. In contrast, SIR knows about $y$. This information allows SIR to orients itself nicely along the color gradient, which contains all the information about the target.
 
-In fact, the performance of PCA is even worse than it appears. Since the data is generated from an isotropic gaussian blob, the PCA directions will be completely random upon replication. PCA chooses the direction that happens to have the most variance in the sample. But the data is isotropic, so this direction is uniformly distributed over all possible subspaces. The variance of the first principal component is huge! This is catastrophic if you are an analyst trying to make sense of the data. You may trick yourself into thinking the direction chosen by PCA has some special meaning, when in fact it does not. To see this more clearly I repeated this experiment multiple times. Each time I measured the angle between the dimension reducing subspace, $\hat{\beta}_{true}$, and the direction chosen by PCA and SIR. I then plot the distributions of the angle in a histogram. The result is displayed below:
+In fact, the performance of PCA is even worse than it appears. Since the data is generated from an isotropic gaussian blob, the PCA directions will be completely random upon replication. PCA chooses the direction that happens to have the most variance in the sample. But the data is isotropic, so this direction is uniformly distributed over all possible subspaces. The variance of the first principal component is huge! This is catastrophic if you are an analyst trying to make sense of the data. You may trick yourself into thinking the direction chosen by PCA has some special meaning, when in fact it does not. To see this more clearly I repeated this experiment multiple times. Each time I measured the angle between the dimension reducing subspace, $\hat{\beta}_{true}$, and the direction chosen by PCA and SIR. I then displayed the distribution of the angle in a histogram. The result is displayed below:
 
 ```{python replicate_angle, class.source = 'fold'}
 def normalize_it(vec):
@@ -347,9 +346,9 @@ ax2.set_ylabel('Counts')
 plt.show()
 ```
 
-As expect the directions estimated by PCA (the histogram on the bottom) are uniformely distributed from 0 to $2\pi$. The direction found by PCA is meaningless. In contast, the distribution of the angle found by SIR (the histogram on the top) concentrates itself around zero. Meaning it almost always finds the direction of the dimension reducing subspace for this problem.
+As expect the directions estimated by PCA (the histogram on the bottom) are uniformly distributed from 0 to $2\pi$. The direction found by PCA is meaningless. In contrast, the distribution of the angle found by SIR (the histogram on the top) concentrates itself around zero. Meaning it almost always finds the direction of the dimension reducing subspace for this problem.
 
-Finally, let's take a look at what the data looks like in the dimension reducing subspace found by SIR and the subspace found by PCA. We can project the data into these subspaces using the `transform` method:
+Finally, let's take a look at what the data looks like in the dimension reducing subspace found by SIR and the subspace found by PCA. The `transform` method projects the data into these subspaces:
 
 ```{python transform_data}
 # project data into the subspaces identified by SIR and PCA
