@@ -23,11 +23,38 @@ tags:
 <p>To avoid the situation above, <strong>sufficient dimension reduction</strong> keeps the relationship between <span class="math inline">\(\mathbf{X}\)</span> and <span class="math inline">\(y\)</span> in mind. The goal is to find a small set of directions that can replace <span class="math inline">\(\mathbf{X}\)</span> without loss of information on the conditional distribution <span class="math inline">\(y|\mathbf{X}\)</span> <a href="#fn1" class="footnoteRef" id="fnref1"><sup>1</sup></a>. This special subspace is called the <strong>dimension reducing subspace</strong> (DRS) or simply <span class="math inline">\(S(\mathbf{X})\)</span> <a href="#fn2" class="footnoteRef" id="fnref2"><sup>2</sup></a>. If we restrict our attention to the DRS we will find that the conditional distribution <span class="math inline">\(y|S(\mathbf{X})\)</span> is the same as the distribution <span class="math inline">\(y|\mathbf{X}\)</span>. But now we have a much smaller set of features! This allows us to better visualize our data and possibly gain deeper insights.</p>
 <div id="example-a-quadratic-surface-in-3d" class="section level2">
 <h2>Example: A Quadratic Surface in 3D</h2>
-<p>Let’s develop some intuition about dimension reducing subspaces and how we can find them. Consider two features <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> that indicate the coordinates of a point on a two-dimensional plane. Associate with each pair of points, <span class="math inline">\((x_1, x_2)\)</span>, the height of a surface that lies above it. Denote the height of the surface by the variable <span class="math inline">\(y\)</span>. The surface is a quadratic surface with <span class="math inline">\(y = x_1^2\)</span>. So the two features are (<span class="math inline">\(x_1\)</span>, <span class="math inline">\(x_2\)</span>) and the target is the height of the quadratic, <span class="math inline">\(y\)</span>.</p>
-<p>To identify the dimension reducing subspace we start by answering the following question: what are all the possible subspaces associated with this dataset? They are the subspaces of the <span class="math inline">\(x_1x_2\)</span>-plane. This is a plane in two-dimensions. But the subspaces of a two-dimensional plane are all the one-dimensional lines that lie in that plane and that pass through the origin <span class="math inline">\((0, 0)\)</span>. The plot below displays a few examples:</p>
-<pre class="python fold"><code>from matplotlib import pyplot as plt
+<p>Let’s develop some intuition about dimension reducing subspaces and how we can find them. Consider two features <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> that indicate the coordinates of a point on a two-dimensional plane. Associated with each pair of points, <span class="math inline">\((x_1, x_2)\)</span>, is the height of a surface that lies above it. Denote the height of the surface by the variable <span class="math inline">\(y\)</span>. The surface is a quadratic surface with <span class="math inline">\(y = x_1^2\)</span>. So the two features are (<span class="math inline">\(x_1\)</span>, <span class="math inline">\(x_2\)</span>) and the target is the height of the quadratic, <span class="math inline">\(y\)</span>. The surface is displayed below:</p>
+<pre class="python fold"><code>import numpy as np
 # !!space
-from loyalpy.plots import abline
+from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+# !!space
+# generate data y = X_1 ** 2 + 0 * X_2
+def f(x, y):
+    return x ** 2 
+# !!space
+x1 = np.linspace(0, 6, 30)
+x2 = np.linspace(0, 6, 30)
+# !!space
+X1, X2 = np.meshgrid(x1, x2)
+Y = f(X1, X2)
+# !!space
+# plot 3d surface y = x_1 ** 2
+fig, ax = plt.subplots(figsize=(10,10), subplot_kw={&#39;projection&#39;:&#39;3d&#39;})
+ax.plot_surface(X1, X2, Y, rstride=1, cstride=1,
+                cmap=&#39;viridis&#39;, edgecolor=&#39;none&#39;)
+# !!space
+# rotate and label our axes
+ax.view_init(35, -75)
+ax.set_title(&#39;$y = x_1^2$&#39;);
+ax.set_xlabel(&#39;$x_1$&#39;)
+ax.set_ylabel(&#39;$x_2$&#39;)
+ax.set_zlabel(&#39;y&#39;)
+# !!space
+plt.show()</code></pre>
+<p><img src="/post/2018-01-11-is-there-a-better-way-than-pca_files/figure-html/3d_data_no_dir-1.png" width="960" /></p>
+<p>To identify the dimension reducing subspace we start by answering the following question: what are all the possible subspaces associated with this dataset? They are the subspaces of the <span class="math inline">\(x_1x_2\)</span>-plane. This is a plane in two-dimensions. But the subspaces of a two-dimensional plane are all the one-dimensional lines that lie in that plane and that pass through the origin <span class="math inline">\((0, 0)\)</span>. The plot below displays a few examples:</p>
+<pre class="python fold"><code>from loyalpy.plots import abline
 from loyalpy.annotations import label_abline
 # !!space
 fig, ax = plt.subplots(figsize=(10, 10))
@@ -58,7 +85,7 @@ plt.show()</code></pre>
 \hat{\beta}^T x = \begin{pmatrix} 1 &amp; 0 \end{pmatrix} \begin{pmatrix} x_1 \\ x_2 \end{pmatrix} = x_1.
 \]</span></p>
 <p>Therefore, finding the dimension reducing subspace boils down to identifying the direction vector <span class="math inline">\(\hat{\beta}\)</span>. If we can estimate <span class="math inline">\(\hat{\beta}\)</span>, then we can create a lower dimensional dataset by using <span class="math inline">\(\mathbf{X}\hat{\beta}\)</span> in our analysis instead of <span class="math inline">\(\mathbf{X}\)</span>.</p>
-<p>To see how we can visually identify the dimension reducing subspace lets take a look at the surface <span class="math inline">\(y = x_1^2\)</span>. A three-dimensional plot of the surface in the <span class="math inline">\(x_1\)</span>-<span class="math inline">\(x_2\)</span>-<span class="math inline">\(y\)</span> plane is shown below.</p>
+<p>To see how we can visually identify the dimension reducing subspace lets look at the surface <span class="math inline">\(y = x_1^2\)</span> again. This time I’ve labeled the direction of the dimension reducing subspace with an arrow.</p>
 <pre class="python fold"><code>import numpy as np
 # !!space
 from mpl_toolkits.mplot3d import Axes3D
@@ -96,7 +123,7 @@ ax.set_zlabel(&#39;y&#39;)
 # !!space
 plt.show()</code></pre>
 <p><img src="/post/2018-01-11-is-there-a-better-way-than-pca_files/figure-html/3d_data-1.png" width="960" /></p>
-<p>Notice how the height of the surface does not change along the <span class="math inline">\(x_2\)</span> dimension. This is why <span class="math inline">\(x_2\)</span> carries no information about <span class="math inline">\(y\)</span>. Now look at the direction associated with the dimension reducing subspace, <span class="math inline">\(\hat{\beta} = (1, 0)\)</span> or the <span class="math inline">\(x_1\)</span>-axis, labeled with an arrow. Notice how all the variation in <span class="math inline">\(y\)</span> occurs along this line. This is why <span class="math inline">\(\hat{\beta}\)</span> carries all the information about <span class="math inline">\(y\)</span>.</p>
+<p>Notice how the height of the surface does not change along the <span class="math inline">\(x_2\)</span> dimension. This is why <span class="math inline">\(x_2\)</span> carries no information about <span class="math inline">\(y\)</span>. Now look at the direction associated with the dimension reducing subspace, <span class="math inline">\(\hat{\beta} = (1, 0)\)</span> or the <span class="math inline">\(x_1\)</span>-axis. Notice how all the variation in <span class="math inline">\(y\)</span> occurs along this line. This is why <span class="math inline">\(\hat{\beta}\)</span> carries all the information about <span class="math inline">\(y\)</span>.</p>
 <p>Now look at what happens when we rotate the plot so that the <span class="math inline">\(x\)</span>-axis is aligned with the direction of <span class="math inline">\(\hat{\beta}\)</span>. This rotation is equivalent to projecting the data onto the dimension reducing subspace. This rotation / projection is shown below:</p>
 <pre class="python fold"><code># plot the surface
 ax = plt.axes(projection=&#39;3d&#39;)
@@ -176,10 +203,10 @@ Z = \hat{\beta}^T X = \begin{pmatrix} 0.7 &amp; -0.7 \end{pmatrix} \begin{pmatri
 \]</span></p>
 <p>Therefore, the dimension reducing subspace is the one dimensional subspace spanned by the vector <span class="math inline">\(\hat{\beta} = (1, -1)\)</span>.</p>
 </div>
-<div id="lets-fit-a-model-already" class="section level2">
-<h2>Let’s Fit a Model Already!</h2>
+<div id="estimating-hatbeta" class="section level2">
+<h2>Estimating <span class="math inline">\(\hat{\beta}\)</span></h2>
 <p>Of course we do not know the data generating process or that <span class="math inline">\(\hat{\beta}\)</span> exists when setting out to perform an analysis. Nevertheless, we still want to reduce the number of features in this dataset from two to one. Both SIR and PCA will accomplish our goal. They will project our data into a one dimensional subspace. But which one is better? From the analysis above we know the best subspace is <span class="math inline">\(\hat{\beta} = (1, -1)\)</span> , which is also the dimension reducing subspace that SIR estimates. But how off will PCA be from this subspace? If PCA is close, then who cares about all this extra theory? Let’s fit both algorithms and compare the results to find out.</p>
-<p>Fitting the algorithms is simple, since they both adhere to the <code>sklearn</code> transformer API. A single hyperparameter <code>n_components</code> indicates the dimension of the subspace. In this case we want a single direction, so we set <code>n_components=1</code>. The <code>components_</code> attribute stores the estimated direction of the subspace once the algorithm is fit. The only difference between the algorithms is that SIR needs to know about the target during the fitting process. The following code fits the two algorithms and extracts the estimated <span class="math inline">\(\hat{\beta}\)</span> vector:</p>
+<p>Fitting the algorithms is simple since they both adhere to the <code>sklearn</code> transformer API. A single hyperparameter <code>n_components</code> indicates the dimension of the subspace. In this case we want a single direction, so we set <code>n_components=1</code>. The <code>components_</code> attribute stores the estimated direction of the subspace once the algorithm is fit. The only difference between the algorithms is that SIR needs to know about the target during the fitting process. The following code fits the two algorithms and extracts the estimated <span class="math inline">\(\hat{\beta}\)</span> vector:</p>
 <pre class="python"><code>from imreduce import SlicedInverseRegression
 from sklearn.decomposition import PCA
 # !!space

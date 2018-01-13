@@ -29,7 +29,7 @@ mpl.rcParams['figure.figsize'] = (10, 10)
 
 **Note**: Checkout the [`imreduce`](https://github.com/joshloyal/inverse-moment-reductions) python package I developed for this blog post!
 
-*Always use the right tool for the job.* This is useful guidance when building a machine learning model. Most data scientists would agree that support vector machines are able to classify images, but a convolutional neural network works better. Linear regression can fit a time-series, but an ARIMA model is more accurate. In each case what separates the algorithms is that the second algorithm specifically address the structure of the problem. CNNs understand the translation invariance of an image and an ARIMA model takes advantage of the sequential nature of a time-series. 
+*Always use the right tool for the job.* This is useful guidance when building a machine learning model. Most data scientists would agree that support vector machines are able to classify images, but a convolutional neural network works better. Linear regression can fit a time-series, but an ARIMA model is more accurate. In each case what separates the approaches is that the second algorithm specifically address the structure of the problem. CNNs understand the translation invariance of an image and an ARIMA model takes advantage of the sequential nature of a time-series. 
 
 The logic is no different for dimension reduction. Performing dimension reduction for a supervised learning task should not be agnostic to the structure of the target. This insight motivates the paradigm of **sufficient dimension reduction**. In the remaining post I introduce the concept of sufficient dimension reduction through a toy example of a surface in three-dimensions. Then I compare a popular algorithm for SDR known as **sliced inverse regression** with principal component analysis (PCA) on a supervised learning problem.
 
@@ -43,13 +43,44 @@ To avoid the situation above, **sufficient dimension reduction** keeps the relat
 
 ## Example: A Quadratic Surface in 3D
 
-Let's develop some intuition about dimension reducing subspaces and how we can find them. Consider two features $x_1$ and $x_2$ that indicate the coordinates of a point on a two-dimensional plane. Associate with each pair of points, $(x_1, x_2)$, the height of a surface that lies above it. Denote the height of the surface by the variable $y$. The surface is a quadratic surface with $y = x_1^2$. So the two features are ($x_1$, $x_2$) and the target is the height of the quadratic, $y$.
+Let's develop some intuition about dimension reducing subspaces and how we can find them. Consider two features $x_1$ and $x_2$ that indicate the coordinates of a point on a two-dimensional plane. Associated with each pair of points, $(x_1, x_2)$, is the height of a surface that lies above it. Denote the height of the surface by the variable $y$. The surface is a quadratic surface with $y = x_1^2$. So the two features are ($x_1$, $x_2$) and the target is the height of the quadratic, $y$. The surface is displayed below:
+
+```{python 3d_data_no_dir, class.source = 'fold'}
+import numpy as np
+# !!space
+from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+# !!space
+
+# generate data y = X_1 ** 2 + 0 * X_2
+def f(x, y):
+    return x ** 2 
+# !!space
+x1 = np.linspace(0, 6, 30)
+x2 = np.linspace(0, 6, 30)
+# !!space
+X1, X2 = np.meshgrid(x1, x2)
+Y = f(X1, X2)
+# !!space
+# plot 3d surface y = x_1 ** 2
+fig, ax = plt.subplots(figsize=(10,10), subplot_kw={'projection':'3d'})
+ax.plot_surface(X1, X2, Y, rstride=1, cstride=1,
+                cmap='viridis', edgecolor='none')
+# !!space
+
+# rotate and label our axes
+ax.view_init(35, -75)
+ax.set_title('$y = x_1^2$');
+ax.set_xlabel('$x_1$')
+ax.set_ylabel('$x_2$')
+ax.set_zlabel('y')
+# !!space
+plt.show()
+```
 
 To identify the dimension reducing subspace we start by answering the following question: what are all the possible subspaces associated with this dataset? They are the subspaces of the $x_1x_2$-plane. This is a plane in two-dimensions. But the subspaces of a two-dimensional plane are all the one-dimensional lines that lie in that plane and that pass through the origin $(0, 0)$. The plot below displays a few examples:
 
 ```{python subspace_demo, class.source = 'fold'}
-from matplotlib import pyplot as plt
-# !!space
 from loyalpy.plots import abline
 from loyalpy.annotations import label_abline
 # !!space
@@ -86,7 +117,7 @@ $$
 
 Therefore, finding the dimension reducing subspace boils down to identifying the direction vector $\hat{\beta}$. If we can estimate $\hat{\beta}$, then we can create a lower dimensional dataset by using $\mathbf{X}\hat{\beta}$ in our analysis instead of $\mathbf{X}$.
 
-To see how we can visually identify the dimension reducing subspace lets take a look at the surface $y = x_1^2$. A three-dimensional plot of the surface in the $x_1$-$x_2$-$y$ plane is shown below.
+To see how we can visually identify the dimension reducing subspace lets look at the surface $y = x_1^2$ again. This time I've labeled the direction of the dimension reducing subspace with an arrow.
 
 ```{python 3d_data, class.source = 'fold'}
 import numpy as np
@@ -130,7 +161,7 @@ ax.set_zlabel('y')
 plt.show()
 ```
 
-Notice how the height of the surface does not change along the $x_2$ dimension. This is why $x_2$ carries no information about $y$. Now look at the direction associated with the dimension reducing subspace, $\hat{\beta} = (1, 0)$ or the $x_1$-axis, labeled with an arrow. Notice how all the variation in $y$ occurs along this line. This is why $\hat{\beta}$ carries all the information about $y$.
+Notice how the height of the surface does not change along the $x_2$ dimension. This is why $x_2$ carries no information about $y$. Now look at the direction associated with the dimension reducing subspace, $\hat{\beta} = (1, 0)$ or the $x_1$-axis. Notice how all the variation in $y$ occurs along this line. This is why $\hat{\beta}$ carries all the information about $y$.
 
 Now look at what happens when we rotate the plot so that the $x$-axis is aligned with the direction of $\hat{\beta}$. This rotation is equivalent to projecting the data onto the dimension reducing subspace. This rotation / projection is shown below:
 
@@ -234,11 +265,11 @@ $$
 
 Therefore, the dimension reducing subspace is the one dimensional subspace spanned by the vector $\hat{\beta} = (1, -1)$.
 
-## Let's Fit a Model Already!
+## Estimating $\hat{\beta}$
 
 Of course we do not know the data generating process or that $\hat{\beta}$ exists when setting out to perform an analysis. Nevertheless, we still want to reduce the number of features in this dataset from two to one. Both SIR and PCA will accomplish our goal. They will project our data into a one dimensional subspace. But which one is better? From the analysis above we know the best subspace is $\hat{\beta} = (1, -1)$ , which is also the dimension reducing subspace that SIR estimates. But how off will PCA be from this subspace? If PCA is close, then who cares about all this extra theory? Let's fit both algorithms and compare the results to find out.
 
-Fitting the algorithms is simple, since they both adhere to the `sklearn` transformer API. A single hyperparameter `n_components` indicates the dimension of the subspace. In this case we want a single direction, so we set `n_components=1`. The `components_` attribute stores the estimated direction of the subspace once the algorithm is fit. The only difference between the algorithms is that SIR needs to know about the target during the fitting process. The following code fits the two algorithms and extracts the estimated $\hat{\beta}$ vector: 
+Fitting the algorithms is simple since they both adhere to the `sklearn` transformer API. A single hyperparameter `n_components` indicates the dimension of the subspace. In this case we want a single direction, so we set `n_components=1`. The `components_` attribute stores the estimated direction of the subspace once the algorithm is fit. The only difference between the algorithms is that SIR needs to know about the target during the fitting process. The following code fits the two algorithms and extracts the estimated $\hat{\beta}$ vector: 
 
 ```{python sir}
 from imreduce import SlicedInverseRegression
