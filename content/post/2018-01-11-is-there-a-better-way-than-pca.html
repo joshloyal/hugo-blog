@@ -14,7 +14,7 @@ tags:
 
 
 
-<p><strong>Note</strong>: Checkout the <a href="https://github.com/joshloyal/inverse-moment-reductions"><code>imreduce</code></a> python package I developed for this blog post!</p>
+<p><strong>Note</strong>: Checkout the <a href="https://github.com/joshloyal/sliced"><code>sliced</code></a> python package I developed for this blog post!</p>
 <p><em>Always use the right tool for the job.</em> This is useful guidance when building a machine learning model. Most data scientists would agree that support vector machines are able to classify images, but a convolutional neural network works better. Linear regression can fit a time-series, but an ARIMA model is more accurate. In each case what separates the approaches is that the second algorithm specifically address the structure of the problem. CNNs understand the translation invariance of an image and an ARIMA model takes advantage of the sequential nature of a time-series.</p>
 <p>The logic is no different for dimension reduction. Performing dimension reduction for a supervised learning task should not be agnostic to the structure of the target. This insight motivates the paradigm of <strong>sufficient dimension reduction</strong>. In the remaining post I introduce the concept of sufficient dimension reduction through a toy example of a surface in three-dimensions. Then I compare a popular algorithm for SDR known as <strong>sliced inverse regression</strong> with principal component analysis (PCA) on a supervised learning problem.</p>
 <div id="what-is-sufficient-dimension-reduction" class="section level1">
@@ -152,7 +152,7 @@ plt.show()</code></pre>
 </div>
 <div id="sliced-inverse-regression-vs.-pca" class="section level1">
 <h1>Sliced Inverse Regression VS. PCA</h1>
-<p>Now that we’ve seen what sufficient dimension reduction can accomplish, we are ready to explore the differences between <em>unsupervised</em> and <em>sufficient</em> dimension reduction. To do this I chose to compare PCA with an algorithm known as <strong>sliced inverse regression</strong> (SIR). SIR was developed in 1991 by Ker-Chau Li from UCLA <a href="#fn3" class="footnoteRef" id="fnref3"><sup>3</sup></a> and expanded upon by Dennis Cook and Sanford Weisberg from the University of Minnesota <a href="#fn4" class="footnoteRef" id="fnref4"><sup>4</sup></a>. It uses the idea of inverse regression to estimate the dimension reducing subspace of the data. I use the <code>SlicedInverseRegression</code> code in the <a href="https://github.com/joshloyal/inverse-moment-reductions"><code>imreduce</code></a> package to fit a SIR model. PCA is carried out using <code>sklearn</code>’s <code>PCA</code> implementation.</p>
+<p>Now that we’ve seen what sufficient dimension reduction can accomplish, we are ready to explore the differences between <em>unsupervised</em> and <em>sufficient</em> dimension reduction. To do this I chose to compare PCA with an algorithm known as <strong>sliced inverse regression</strong> (SIR). SIR was developed in 1991 by Ker-Chau Li from UCLA <a href="#fn3" class="footnoteRef" id="fnref3"><sup>3</sup></a> and expanded upon by Dennis Cook and Sanford Weisberg from the University of Minnesota <a href="#fn4" class="footnoteRef" id="fnref4"><sup>4</sup></a>. It uses the idea of inverse regression to estimate the dimension reducing subspace of the data. I use the <code>SlicedInverseRegression</code> code in the <a href="https://github.com/joshloyal/sliced"><code>sliced</code></a> package to fit a SIR model. PCA is carried out using <code>sklearn</code>’s <code>PCA</code> implementation.</p>
 <div id="the-data" class="section level2">
 <h2>The Data</h2>
 <p>Consider the following data generating process:</p>
@@ -208,10 +208,10 @@ Z = \hat{\beta}^T X = \begin{pmatrix} 0.7 &amp; -0.7 \end{pmatrix} \begin{pmatri
 <h2>Estimating <span class="math inline">\(\hat{\beta}\)</span></h2>
 <p>Of course we do not know the data generating process or that <span class="math inline">\(\hat{\beta}\)</span> exists when setting out to perform an analysis. Nevertheless, we still want to reduce the number of features in this dataset from two to one. Both SIR and PCA will accomplish our goal. They will project our data into a one dimensional subspace. But which one is better? From the analysis above we know the best subspace is <span class="math inline">\(\hat{\beta} = (1, -1)\)</span> , which is also the dimension reducing subspace that SIR estimates. But how off will PCA be from this subspace? If PCA is close, then who cares about all this extra theory? Let’s fit both algorithms and compare the results to find out.</p>
 <p>Fitting the algorithms is simple since they both adhere to the <code>sklearn</code> transformer API. A single hyperparameter <code>n_components</code> indicates the dimension of the subspace. In this case we want a single direction, so we set <code>n_components=1</code>. The <code>components_</code> attribute stores the estimated direction of the subspace once the algorithm is fit. The only difference between the algorithms is that SIR needs to know about the target during the fitting process. The following code fits the two algorithms and extracts the estimated <span class="math inline">\(\hat{\beta}\)</span> vector:</p>
-<pre class="python"><code>from imreduce import SlicedInverseRegression
+<pre class="python"><code>from sliced import SlicedInverseRegression
 from sklearn.decomposition import PCA
 # !!space
-# fit imreduce&#39;s SIR. Remember we need to pass the target in as well!
+# fit sliced&#39;s SIR. Remember we need to pass the target in as well!
 sir = SlicedInverseRegression(n_components=1).fit(X, y)
 sir_direction = sir.components_[0, :]
 # !!space
@@ -324,7 +324,7 @@ plt.show()</code></pre>
 <div id="conclusion" class="section level1">
 <h1>Conclusion</h1>
 <p>It is important to think critically about the dimension reduction algorithm used to analyze a dataset. The algorithm should reduce the features in a way that preserves the information of interest instead of finding spurious structure. <strong>Sufficient dimension reduction</strong> and <strong>sliced inverse regression</strong> are one such way of looking for structure in a supervised learning setting.</p>
-<p>However, you should always remain diligent. These algorithms are not perfect. In particular, SIR fails to estimate the dimension reducing subspace when the conditional density <span class="math inline">\(\mathbf{X}|y\)</span> is symmetric in <span class="math inline">\(y\)</span>. The SAVE algorithm (also in the <a href="https://github.com/joshloyal/inverse-moment-reductions"><code>imreduce</code></a> package) overcomes this limitation. However, SAVE fails to pick up on simple linear trends easily estimated by SIR. If possible both SIR and SAVE should be used together in practice. Of course, I did not actually go through the mechanics of the SIR algorithm. That is the subject of a future blog post.</p>
+<p>However, you should always remain diligent. These algorithms are not perfect. In particular, SIR fails to estimate the dimension reducing subspace when the conditional density <span class="math inline">\(\mathbf{X}|y\)</span> is symmetric in <span class="math inline">\(y\)</span>. The SAVE algorithm (also in the <a href="https://github.com/joshloyal/sliced"><code>sliced</code></a> package) overcomes this limitation. However, SAVE fails to pick up on simple linear trends easily estimated by SIR. If possible both SIR and SAVE should be used together in practice. Of course, I did not actually go through the mechanics of the SIR algorithm. That is the subject of a future blog post.</p>
 </div>
 <div class="footnotes">
 <hr />
