@@ -1,0 +1,138 @@
+---
+title: Gaussian Conjugate Prior without Completeing the Square
+author: Joshua Loyal
+date: '2018-06-26'
+slug: gaussian-conjugate-prior
+categories:
+  - theory
+tags:
+  - bayesian statistics 
+---
+
+
+
+<p>Let <span class="math display">\[
+\begin{aligned}
+X_i \ | \ \mu &amp; \stackrel{iid}\sim N(\mu, \sigma^2) \quad i = 1, \dots, n\\
+\mu &amp;\sim N(\mu_0, \sigma_0^2).
+\end{aligned}
+\]</span></p>
+<p>In addition, denote by <span class="math inline">\(\mathbf{X} = (X_1, X_2, \dots, X_n)\)</span> the vector of conditionally independent (conditioned on a common mean <span class="math inline">\(\mu\)</span>) random variables <span class="math inline">\(X_i\)</span>. What is the posterior distribution of <span class="math inline">\(\mu\)</span>?</p>
+<p>The above problem is a common first exercise in Bayesian statistics. Most often the derivation is introduced as a messy exercise in completing the square. This always troubled me. The normal distribution is one of the most studied distributions in statistics. As such there are loads of tricks for working with this distribution. There had to be a less tedious more revealing way to derive the posterior. It turns out there is! The following derivation draws heavily from a note from Michael Jordan’s <a href="https://people.eecs.berkeley.edu/~jordan/courses/260-spring10/">STAT 260 / CS 294: Bayesian Modeling and Inference</a> course at Berkeley. I’ve just added a few justifications that he skims over.</p>
+<div id="the-posterior-for-a-single-observation" class="section level1">
+<h1>The Posterior for a Single Observation</h1>
+<p>We begin with a simpler case of a single observation <span class="math inline">\(X\)</span>:</p>
+<p><span class="math display">\[
+\begin{aligned}
+X \ | \ \mu &amp; \sim N(\mu, \sigma^2) \\
+\mu &amp;\sim N(\mu_0, \sigma_0^2).
+\end{aligned}
+\]</span> Although this may seem like a major simplification, the principal of sufficiency will allow us to use the results developed here with very little modification. We begin by showing that <span class="math inline">\(X\)</span> and <span class="math inline">\(\mu\)</span> have a joint multivariate normal distribution.</p>
+<div id="the-joint-distribution-of-x-and-mu" class="section level3">
+<h3>The Joint Distribution of <span class="math inline">\(X\)</span> and <span class="math inline">\(\mu\)</span></h3>
+<p>Consider the random variable <span class="math inline">\(X - \mu\)</span>. From the properties of the normal distribution we know that <span class="math display">\[
+X - \mu \ | \ \mu \sim N(0, \sigma^2)
+\]</span> Notice that this formula for the conditional distribution is independent of <span class="math inline">\(\mu\)</span> for all values of <span class="math inline">\(\mu\)</span>. This allows us to assert that unconditionally <span class="math inline">\(X - \mu\)</span> is independent of <span class="math inline">\(\mu\)</span>. Thus, <span class="math display">\[
+\begin{pmatrix}
+X - \mu \\
+\mu
+\end{pmatrix} \sim 
+N\left(
+\begin{pmatrix}
+0 \\
+\mu_0
+\end{pmatrix}, 
+\begin{pmatrix}
+\sigma^2 &amp; 0 \\
+0 &amp; \sigma_0^2
+\end{pmatrix}
+\right).
+\]</span> To get the joint distribution of <span class="math inline">\(X\)</span> and <span class="math inline">\(\mu\)</span> we apply the following linear transformation: <span class="math display">\[
+\begin{pmatrix}
+X \\
+\mu \\
+\end{pmatrix} =
+\begin{pmatrix}
+1 &amp; 1 \\
+1 &amp; 0
+\end{pmatrix}
+\begin{pmatrix}
+X - \mu \\
+\mu
+\end{pmatrix}
+\]</span> Recall that a linear transformation <span class="math inline">\(A\)</span> acting on a multivariate gaussian random variable <span class="math inline">\(W\)</span> effects the mean as <span class="math inline">\(E[AW] = A E[W]\)</span> and co-variance as <span class="math inline">\(\text{Cov}(AW) = A \text{Cov}(W) A^T\)</span>. Applying these formulas we have <span class="math display">\[
+\begin{pmatrix}
+X \\
+\mu \\
+\end{pmatrix} \sim
+N\left(
+\begin{pmatrix}
+\mu_0 \\
+\mu_0
+\end{pmatrix}, 
+\begin{pmatrix}
+\sigma_0^2 + \sigma^2 &amp; \sigma_0^2 \\
+\sigma_0^2 &amp; \sigma_0^2
+\end{pmatrix}
+\right).
+\]</span> This is the joint distribution of <span class="math inline">\(X\)</span> and <span class="math inline">\(\mu\)</span>.</p>
+</div>
+<div id="the-posterior-distribution-of-mu" class="section level3">
+<h3>The posterior distribution of <span class="math inline">\(\mu\)</span></h3>
+<p>The above distribution allows us to easily compute the posterior distribution of <span class="math inline">\(\mu\)</span> given <span class="math inline">\(X\)</span>. Recall that if <span class="math inline">\(X\)</span> and <span class="math inline">\(Y\)</span> are jointly gaussian: <span class="math display">\[
+\begin{pmatrix}
+Y \\
+X \\
+\end{pmatrix} \sim
+N\left(
+\begin{pmatrix}
+\mu_Y \\
+\mu_X
+\end{pmatrix}, 
+\begin{pmatrix}
+\sigma_Y^2 &amp; \sigma_{XY} \\
+\sigma_{XY} &amp; \sigma_Y^2
+\end{pmatrix}
+\right).
+\]</span> then</p>
+<p><span class="math display">\[
+\begin{aligned}
+E[Y|X] = \mu_Y + \frac{\sigma_{XY}}{\sigma_X^2}(X - \mu_X) \\
+Var(Y|X) = \sigma_Y^2 - \frac{\sigma_{XY}^2}{\sigma_{X}^2}.
+\end{aligned}
+\]</span></p>
+<p>Applying this to the above distribution with <span class="math inline">\(\mu\)</span> as <span class="math inline">\(Y\)</span> we have <span class="math display">\[
+\begin{aligned}
+E[\mu|X] &amp;= \mu_0 - \frac{\sigma_0^2}{\sigma_0^2 + \sigma^2}(X - \mu_0) \\
+&amp;= \frac{\sigma_0^2}{\sigma_0^2 + \sigma^2} X + \frac{\sigma^2}{\sigma_0^2 + \sigma^2} \mu_0
+\end{aligned}
+\]</span> and <span class="math display">\[
+\begin{aligned}
+Var(\mu|X) &amp;= \sigma_0^2 - \frac{\sigma_0^4}{\sigma_0^2 + \sigma^2} \\
+&amp;= \frac{\sigma_0^2\sigma^2}{\sigma_0^2 + \sigma^2} \\
+&amp;= \frac{1}{\frac{1}{\sigma_0^2} + \frac{1}{\sigma^2}}.
+\end{aligned}
+\]</span> These are the same posterior means and variances one would arrive after tediously completing the square.</p>
+</div>
+</div>
+<div id="the-posterior-with-more-than-one-observation" class="section level1">
+<h1>The Posterior with More than One Observation</h1>
+<p>Surprisingly the derivation for more than one observation is almost exactly identical as above. We just note that a sufficient statistic for <span class="math inline">\(\mu\)</span> is the mean <span class="math inline">\(\bar{X}\)</span> of the sample <span class="math inline">\(\mathbf{X}\)</span>. The principal of sufficiency tells us that we can base our inferences on the single statistic <span class="math inline">\(\bar{X}\)</span> as opposed to the whole sample. The proof follows from Fisher’s factorization theorem. Since <span class="math inline">\(\bar{X}\)</span> is a sufficient statistic the factorization theorem tells us we can factor the joint density as <span class="math display">\[
+f(\mathbf{X}|\mu) = g(\bar{X}|\mu) h(\mathbf{X}) 
+\]</span> where <span class="math inline">\(g(\bar{X}|\mu)\)</span> is the distribution function of <span class="math inline">\(\bar{X}\)</span> and <span class="math inline">\(h(\mathbf{X})\)</span> is a function independent of <span class="math inline">\(\mu\)</span>. Thus, the posterior reduces to that of <span class="math inline">\(\bar{X} | \mu\)</span>: <span class="math display">\[
+\begin{aligned}
+f(\mu | \mathbf{X}) &amp;= \frac{f(\mathbf{X} | \mu) \pi(\mu)}{\int f(\mathbf{X}|\mu)\pi(\mu) d\mu} \\
+&amp;= \frac{g(\bar{X}|\mu) h(\mathbf{X}) \pi(\mu)}{\int g(\bar{X}|\mu) h(\mathbf{X}) \pi(\mu) d\mu} \\
+&amp;= \frac{g(\bar{X}|\mu) \pi(\mu)}{\int g(\bar{X}|\mu) \pi(\mu) d\mu}.
+\end{aligned}
+\]</span> What this means is that the problem now involves looking at the joint distribution of <span class="math inline">\(\bar{X}\)</span> and <span class="math inline">\(\mu\)</span>. However, recall that <span class="math inline">\(\bar{X} \sim N(\mu , \frac{\sigma^2}{n})\)</span>. Therefore, we can use the same arguments as above with <span class="math inline">\(\frac{\sigma^2}{n}\)</span> substituted for <span class="math inline">\(\sigma^2\)</span> and <span class="math inline">\(\bar{X}\)</span> substituted for <span class="math inline">\(X\)</span>. The end result is the following formulas for the posterior mean and variance:</p>
+<p><span class="math display">\[
+\begin{aligned}
+E[\mu|\mathbf{X}] =
+\frac{\sigma_0^2}{\sigma_0^2 + \frac{\sigma^2}{n}} \bar{X} + \frac{\frac{\sigma^2}{n}}{\sigma_0^2 + \frac{\sigma^2}{n}} \mu_0
+\end{aligned}
+\]</span> and</p>
+<span class="math display">\[\begin{aligned}
+Var(\mu|\mathbf{X}) = \frac{1}{\frac{1}{\sigma_0^2} + \frac{n}{\sigma^2}}.
+\end{aligned}\]</span>
+</div>
