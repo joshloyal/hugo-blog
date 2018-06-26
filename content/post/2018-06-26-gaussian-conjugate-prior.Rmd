@@ -159,7 +159,7 @@ f(\mu | \mathbf{X}) &= \frac{f(\mathbf{X} | \mu) \pi(\mu)}{\int f(\mathbf{X}|\mu
 &= \frac{g(\bar{X}|\mu) \pi(\mu)}{\int g(\bar{X}|\mu) \pi(\mu) d\mu}.
 \end{aligned}
 $$
-What this means is that the problem now involves looking at the joint distribution of $\bar{X}$ and $\mu$. However, recall that $\bar{X} \sim N(\mu , \frac{\sigma^2}{n})$. Therefore, we can use the same arguments as above with $\frac{\sigma^2}{n}$ substituted for $\sigma^2$ and $\bar{X}$ substituted for $X$. The end result is the following formulas for the posterior mean and variance:
+What this means is that the problem now involves looking at the joint distribution of $\bar{X}$ and $\mu$. However, recall that $\bar{X} \ | \ \mu \sim N(\mu , \frac{\sigma^2}{n})$. Therefore, we can use the same arguments as above with $\frac{\sigma^2}{n}$ substituted for $\sigma^2$ and $\bar{X}$ substituted for $X$. The end result is the following formulas for the posterior mean and variance:
 
 $$
 \begin{aligned}
